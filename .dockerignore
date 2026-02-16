@@ -1,0 +1,13 @@
+node_modules
+dist
+drizzle
+.git
+.gitignore
+.env
+.env.local
+*.log
+*.md
+!README.md
+Dockerfile
+docker-compose.yml
+.dockerignore
