@@ -11,6 +11,24 @@ Personal finance management API. Built for AI-first workflows.
 
 ## Quick Start
 
+### With Docker (recommended)
+
+```bash
+# Start API + PostgreSQL
+docker compose up
+
+# Run migrations (in another terminal)
+docker compose exec api bun run db:generate
+docker compose exec api bun run db:migrate
+
+# Optional: Drizzle Studio (DB GUI)
+docker compose --profile tools up studio
+```
+
+API available at `http://localhost:3000`
+
+### Without Docker
+
 ```bash
 # Install dependencies
 bun install

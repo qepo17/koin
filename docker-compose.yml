@@ -1,0 +1,56 @@
+services:
+  api:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - DATABASE_URL=postgresql://koin:koin@db:5432/koin
+      - PORT=3000
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=koin
+      - POSTGRES_PASSWORD=koin
+      - POSTGRES_DB=koin
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U koin -d koin"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Optional: Drizzle Studio for DB management
+  studio:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "4983:4983"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - DATABASE_URL=postgresql://koin:koin@db:5432/koin
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["bun", "run", "db:studio"]
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
