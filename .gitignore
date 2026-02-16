@@ -8,8 +8,8 @@ node_modules/
 # Build
 dist/
 
-# Drizzle
-drizzle/
+# Drizzle (keep migrations, ignore meta)
+drizzle/meta/
 
 # IDE
 .idea/
