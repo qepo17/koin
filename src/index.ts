@@ -1,9 +1,11 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import auth from "./routes/auth";
 import transactions from "./routes/transactions";
 import categories from "./routes/categories";
 import summary from "./routes/summary";
+import { authMiddleware } from "./middleware/auth";
 
 export const app = new Hono();
 
@@ -11,7 +13,10 @@ export const app = new Hono();
 if (process.env.NODE_ENV !== "test") {
   app.use("*", logger());
 }
-app.use("*", cors());
+app.use("*", cors({
+  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  credentials: true,
+}));
 
 // Health check
 app.get("/", (c) => {
@@ -22,7 +27,14 @@ app.get("/", (c) => {
   });
 });
 
-// Routes
+// Public routes
+app.route("/api/auth", auth);
+
+// Protected routes
+app.use("/api/transactions/*", authMiddleware);
+app.use("/api/categories/*", authMiddleware);
+app.use("/api/summary/*", authMiddleware);
+
 app.route("/api/transactions", transactions);
 app.route("/api/categories", categories);
 app.route("/api/summary", summary);

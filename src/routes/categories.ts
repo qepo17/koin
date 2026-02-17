@@ -1,20 +1,29 @@
 import { Hono } from "hono";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, categories } from "../db";
 import { createCategorySchema, updateCategorySchema } from "../types";
 
 const app = new Hono();
 
-// List categories
+// List categories (scoped to user)
 app.get("/", async (c) => {
-  const result = await db.select().from(categories);
+  const userId = c.get("userId");
+  const result = await db
+    .select()
+    .from(categories)
+    .where(eq(categories.userId, userId));
   return c.json({ data: result });
 });
 
-// Get single category
+// Get single category (scoped to user)
 app.get("/:id", async (c) => {
+  const userId = c.get("userId");
   const id = c.req.param("id");
-  const result = await db.select().from(categories).where(eq(categories.id, id));
+  
+  const result = await db
+    .select()
+    .from(categories)
+    .where(and(eq(categories.id, id), eq(categories.userId, userId)));
   
   if (result.length === 0) {
     return c.json({ error: "Category not found" }, 404);
@@ -25,6 +34,7 @@ app.get("/:id", async (c) => {
 
 // Create category
 app.post("/", async (c) => {
+  const userId = c.get("userId");
   const body = await c.req.json();
   const parsed = createCategorySchema.safeParse(body);
   
@@ -32,12 +42,16 @@ app.post("/", async (c) => {
     return c.json({ error: parsed.error.issues }, 400);
   }
   
-  const result = await db.insert(categories).values(parsed.data).returning();
+  const result = await db
+    .insert(categories)
+    .values({ ...parsed.data, userId })
+    .returning();
   return c.json({ data: result[0] }, 201);
 });
 
-// Update category
+// Update category (scoped to user)
 app.patch("/:id", async (c) => {
+  const userId = c.get("userId");
   const id = c.req.param("id");
   const body = await c.req.json();
   const parsed = updateCategorySchema.safeParse(body);
@@ -46,9 +60,10 @@ app.patch("/:id", async (c) => {
     return c.json({ error: parsed.error.issues }, 400);
   }
   
-  const result = await db.update(categories)
+  const result = await db
+    .update(categories)
     .set({ ...parsed.data, updatedAt: new Date() })
-    .where(eq(categories.id, id))
+    .where(and(eq(categories.id, id), eq(categories.userId, userId)))
     .returning();
     
   if (result.length === 0) {
@@ -58,10 +73,15 @@ app.patch("/:id", async (c) => {
   return c.json({ data: result[0] });
 });
 
-// Delete category
+// Delete category (scoped to user)
 app.delete("/:id", async (c) => {
+  const userId = c.get("userId");
   const id = c.req.param("id");
-  const result = await db.delete(categories).where(eq(categories.id, id)).returning();
+  
+  const result = await db
+    .delete(categories)
+    .where(and(eq(categories.id, id), eq(categories.userId, userId)))
+    .returning();
   
   if (result.length === 0) {
     return c.json({ error: "Category not found" }, 404);

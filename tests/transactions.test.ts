@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
 import { setupTestDb, teardownTestDb, cleanupTables, getTestDb } from "./setup";
-import { api } from "./helpers";
+import { createApi, createTestUser } from "./helpers";
 import { categories } from "../src/db/schema";
 
 describe("Transactions API", () => {
+  let api: ReturnType<typeof createApi>;
+  let userId: string;
+
   beforeAll(async () => {
     await setupTestDb();
   });
@@ -14,6 +17,10 @@ describe("Transactions API", () => {
 
   beforeEach(async () => {
     await cleanupTables();
+    // Create a test user and get authenticated API
+    const { token, response } = await createTestUser();
+    userId = response.data?.data?.user?.id;
+    api = createApi(token);
   });
 
   describe("POST /api/transactions", () => {
@@ -29,6 +36,7 @@ describe("Transactions API", () => {
         type: "expense",
         amount: "25.50",
         description: "Coffee and snacks",
+        userId,
       });
       expect(data.data.id).toBeDefined();
     });
@@ -50,21 +58,18 @@ describe("Transactions API", () => {
 
     it("should create transaction with category", async () => {
       // First create a category
-      const db = getTestDb();
-      const [category] = await db
-        .insert(categories)
-        .values({ name: "Food & Dining" })
-        .returning();
+      const catResult = await api.post("/api/categories", { name: "Food & Dining" });
+      const categoryId = catResult.data.data.id;
 
       const { status, data } = await api.post("/api/transactions", {
         type: "expense",
         amount: "15.00",
         description: "Lunch",
-        categoryId: category.id,
+        categoryId,
       });
 
       expect(status).toBe(201);
-      expect(data.data.categoryId).toBe(category.id);
+      expect(data.data.categoryId).toBe(categoryId);
     });
 
     it("should reject invalid transaction type", async () => {
@@ -85,10 +90,21 @@ describe("Transactions API", () => {
       expect(status).toBe(400);
       expect(data.error).toBeDefined();
     });
+
+    it("should reject unauthenticated requests", async () => {
+      const unauthApi = createApi(); // No token
+      const { status, data } = await unauthApi.post("/api/transactions", {
+        type: "expense",
+        amount: "10.00",
+      });
+
+      expect(status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
   });
 
   describe("GET /api/transactions", () => {
-    it("should list all transactions", async () => {
+    it("should list all transactions for the user", async () => {
       // Create some transactions
       await api.post("/api/transactions", { type: "expense", amount: "10.00" });
       await api.post("/api/transactions", { type: "expense", amount: "20.00" });
@@ -118,6 +134,20 @@ describe("Transactions API", () => {
       expect(status).toBe(200);
       expect(data.data).toHaveLength(0);
     });
+
+    it("should not return transactions from other users", async () => {
+      // Create transaction with current user
+      await api.post("/api/transactions", { type: "expense", amount: "10.00" });
+
+      // Create another user
+      const { token: otherToken } = await createTestUser();
+      const otherApi = createApi(otherToken);
+
+      // Other user should not see first user's transactions
+      const { status, data } = await otherApi.get("/api/transactions");
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(0);
+    });
   });
 
   describe("GET /api/transactions/:id", () => {
@@ -144,6 +174,24 @@ describe("Transactions API", () => {
 
       expect(status).toBe(404);
       expect(data.error).toBe("Transaction not found");
+    });
+
+    it("should not return another user's transaction", async () => {
+      // Create transaction with current user
+      const created = await api.post("/api/transactions", {
+        type: "expense",
+        amount: "50.00",
+      });
+
+      // Create another user
+      const { token: otherToken } = await createTestUser();
+      const otherApi = createApi(otherToken);
+
+      // Other user should not access first user's transaction
+      const { status, data } = await otherApi.get(
+        `/api/transactions/${created.data.data.id}`
+      );
+      expect(status).toBe(404);
     });
   });
 
