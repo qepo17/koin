@@ -11,9 +11,25 @@ services:
     environment:
       - DATABASE_URL=postgresql://koin:koin@db:5432/koin
       - PORT=3000
+      - FRONTEND_URL=http://localhost:5173
+      - JWT_SECRET=dev-secret-change-in-production
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:3000
+    depends_on:
+      - api
     restart: unless-stopped
 
   db:
