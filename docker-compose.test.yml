@@ -12,7 +12,7 @@ services:
     depends_on:
       test-db:
         condition: service_healthy
-    command: ["bun", "test"]
+    command: ["bun", "test", "tests/"]
 
   test-db:
     image: postgres:16-alpine

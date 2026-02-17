@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
+import { rateLimiter } from "hono-rate-limiter";
 import { db, users } from "../db";
 import { registerSchema, loginSchema } from "../types";
 import {
@@ -14,8 +15,20 @@ import {
 
 const app = new Hono();
 
+// Rate limiter for auth endpoints: 5 requests per minute per IP
+// Skip in test environment to avoid test interference
+const authRateLimiter = process.env.NODE_ENV === "test"
+  ? async (_c: any, next: () => Promise<void>) => next()
+  : rateLimiter({
+      windowMs: 60 * 1000, // 1 minute
+      limit: 5,
+      standardHeaders: "draft-6",
+      keyGenerator: (c) => c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown",
+      message: { error: "Too many requests, please try again later" },
+    });
+
 // Register
-app.post("/register", async (c) => {
+app.post("/register", authRateLimiter, async (c) => {
   const body = await c.req.json();
   const parsed = registerSchema.safeParse(body);
 
@@ -59,7 +72,7 @@ app.post("/register", async (c) => {
 });
 
 // Login
-app.post("/login", async (c) => {
+app.post("/login", authRateLimiter, async (c) => {
   const body = await c.req.json();
   const parsed = loginSchema.safeParse(body);
 

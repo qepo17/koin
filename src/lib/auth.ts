@@ -1,7 +1,11 @@
 import { sign, verify } from "hono/jwt";
 import type { Context } from "hono";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("JWT_SECRET environment variable is required in production");
+}
+const jwtSecret = JWT_SECRET || "dev-secret-change-in-production";
 const JWT_EXPIRES_IN = 60 * 60 * 24 * 7; // 7 days in seconds
 
 export interface JWTPayload {
@@ -31,12 +35,12 @@ export async function createToken(userId: string, email: string): Promise<string
     iat: now,
     exp: now + JWT_EXPIRES_IN,
   };
-  return await sign(payload, JWT_SECRET, "HS256");
+  return await sign(payload, jwtSecret, "HS256");
 }
 
 export async function verifyToken(token: string): Promise<JWTPayload | null> {
   try {
-    const payload = await verify(token, JWT_SECRET, "HS256");
+    const payload = await verify(token, jwtSecret, "HS256");
     if (payload && typeof payload.sub === "string" && typeof payload.email === "string") {
       return payload as JWTPayload;
     }
