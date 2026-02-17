@@ -132,6 +132,16 @@ export const skill = {
       return { ok: false as const, error };
     }
   },
+  generateToken: async () => {
+    try {
+      const data = await request<{ data: { token: string } }>("/skill/token", {
+        method: "POST",
+      });
+      return { ok: true as const, data: data.data };
+    } catch (error) {
+      return { ok: false as const, error };
+    }
+  },
 };
 
 // Combined API object
@@ -201,5 +211,4 @@ export interface Summary {
 
 export interface SkillPreview {
   baseUrl: string;
-  tokenPreview: string;
 }

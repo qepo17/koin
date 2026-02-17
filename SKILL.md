@@ -4,16 +4,17 @@ Manage personal finances through the Koin API.
 
 ## Configuration
 
-```
-API_URL: {{API_URL}}
-API_TOKEN: {{API_TOKEN}}
+Set these environment variables before using:
+```bash
+export KOIN_API_URL="{{API_URL}}"
+export KOIN_API_TOKEN="<your-token-here>"
 ```
 
 ## Authentication
 
 All requests require the Bearer token:
 ```bash
-curl -H "Authorization: Bearer $API_TOKEN" "$API_URL/endpoint"
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/endpoint"
 ```
 
 ## Endpoints
@@ -22,8 +23,8 @@ curl -H "Authorization: Bearer $API_TOKEN" "$API_URL/endpoint"
 
 #### List Transactions
 ```bash
-curl -H "Authorization: Bearer $API_TOKEN" \
-  "$API_URL/transactions?startDate=2024-01-01&endDate=2024-12-31&type=expense"
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  "$KOIN_API_URL/transactions?startDate=2024-01-01&endDate=2024-12-31&type=expense"
 ```
 
 Query params:
@@ -34,9 +35,9 @@ Query params:
 
 #### Create Transaction
 ```bash
-curl -X POST -H "Authorization: Bearer $API_TOKEN" \
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
   -H "Content-Type: application/json" \
-  "$API_URL/transactions" \
+  "$KOIN_API_URL/transactions" \
   -d '{
     "type": "expense",
     "amount": "25.50",
@@ -51,34 +52,34 @@ Optional: `description`, `categoryId`, `date` (defaults to now)
 
 #### Get Transaction
 ```bash
-curl -H "Authorization: Bearer $API_TOKEN" "$API_URL/transactions/:id"
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/transactions/:id"
 ```
 
 #### Update Transaction
 ```bash
-curl -X PATCH -H "Authorization: Bearer $API_TOKEN" \
+curl -X PATCH -H "Authorization: Bearer $KOIN_API_TOKEN" \
   -H "Content-Type: application/json" \
-  "$API_URL/transactions/:id" \
+  "$KOIN_API_URL/transactions/:id" \
   -d '{"amount": "30.00"}'
 ```
 
 #### Delete Transaction
 ```bash
-curl -X DELETE -H "Authorization: Bearer $API_TOKEN" "$API_URL/transactions/:id"
+curl -X DELETE -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/transactions/:id"
 ```
 
 ### Categories
 
 #### List Categories
 ```bash
-curl -H "Authorization: Bearer $API_TOKEN" "$API_URL/categories"
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/categories"
 ```
 
 #### Create Category
 ```bash
-curl -X POST -H "Authorization: Bearer $API_TOKEN" \
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
   -H "Content-Type: application/json" \
-  "$API_URL/categories" \
+  "$KOIN_API_URL/categories" \
   -d '{
     "name": "Food & Dining",
     "description": "Restaurants, groceries, coffee",
@@ -91,23 +92,23 @@ Optional: `description`, `color` (hex format)
 
 #### Update Category
 ```bash
-curl -X PATCH -H "Authorization: Bearer $API_TOKEN" \
+curl -X PATCH -H "Authorization: Bearer $KOIN_API_TOKEN" \
   -H "Content-Type: application/json" \
-  "$API_URL/categories/:id" \
+  "$KOIN_API_URL/categories/:id" \
   -d '{"color": "#22c55e"}'
 ```
 
 #### Delete Category
 ```bash
-curl -X DELETE -H "Authorization: Bearer $API_TOKEN" "$API_URL/categories/:id"
+curl -X DELETE -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/categories/:id"
 ```
 
 ### Summary
 
 #### Get Financial Summary
 ```bash
-curl -H "Authorization: Bearer $API_TOKEN" \
-  "$API_URL/summary?startDate=2024-01-01&endDate=2024-01-31"
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  "$KOIN_API_URL/summary?startDate=2024-01-01&endDate=2024-01-31"
 ```
 
 Returns:
@@ -128,17 +129,17 @@ Returns:
 
 ### Log an expense
 ```bash
-curl -X POST -H "Authorization: Bearer $API_TOKEN" \
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
   -H "Content-Type: application/json" \
-  "$API_URL/transactions" \
+  "$KOIN_API_URL/transactions" \
   -d '{"type": "expense", "amount": "15.00", "description": "Coffee"}'
 ```
 
 ### Log income
 ```bash
-curl -X POST -H "Authorization: Bearer $API_TOKEN" \
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
   -H "Content-Type: application/json" \
-  "$API_URL/transactions" \
+  "$KOIN_API_URL/transactions" \
   -d '{"type": "income", "amount": "3000.00", "description": "Salary"}'
 ```
 
@@ -146,7 +147,7 @@ curl -X POST -H "Authorization: Bearer $API_TOKEN" \
 ```bash
 START=$(date -d "$(date +%Y-%m-01)" +%Y-%m-%dT00:00:00Z)
 END=$(date +%Y-%m-%dT23:59:59Z)
-curl -H "Authorization: Bearer $API_TOKEN" "$API_URL/summary?startDate=$START&endDate=$END"
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/summary?startDate=$START&endDate=$END"
 ```
 
 ## Response Format

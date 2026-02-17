@@ -11,20 +11,14 @@ const SKILL_TEMPLATE_PATH = join(import.meta.dir, "../../SKILL.md");
 
 // Generate personalized SKILL.md for the authenticated user
 app.get("/download", authMiddleware, async (c) => {
-  const user = c.get("user");
-  
-  // Generate a long-lived API token for the skill
-  const apiToken = await createToken(user.sub, user.email);
-  
   // Get base URL from env or construct from request
   const baseUrl = process.env.API_BASE_URL || 
     `${c.req.header("x-forwarded-proto") || "http"}://${c.req.header("host")}/api`;
 
-  // Read template and replace placeholders
+  // Read template and replace API_URL placeholder only
+  // Token is NOT embedded - user should store it securely in env vars
   const template = await readFile(SKILL_TEMPLATE_PATH, "utf-8");
-  const skillContent = template
-    .replace(/\{\{API_URL\}\}/g, baseUrl)
-    .replace(/\{\{API_TOKEN\}\}/g, apiToken);
+  const skillContent = template.replace(/\{\{API_URL\}\}/g, baseUrl);
 
   return new Response(skillContent, {
     headers: {
@@ -34,18 +28,28 @@ app.get("/download", authMiddleware, async (c) => {
   });
 });
 
-// Preview endpoint (returns JSON with the values)
+// Preview endpoint (returns base URL only)
 app.get("/preview", authMiddleware, async (c) => {
-  const user = c.get("user");
-  
-  const apiToken = await createToken(user.sub, user.email);
   const baseUrl = process.env.API_BASE_URL || 
     `${c.req.header("x-forwarded-proto") || "http"}://${c.req.header("host")}/api`;
 
   return c.json({
     data: {
       baseUrl,
-      tokenPreview: `${apiToken.slice(0, 20)}...${apiToken.slice(-10)}`,
+    },
+  });
+});
+
+// Generate a new API token for the user
+app.post("/token", authMiddleware, async (c) => {
+  const user = c.get("user");
+  
+  // Generate a long-lived API token
+  const apiToken = await createToken(user.sub, user.email);
+
+  return c.json({
+    data: {
+      token: apiToken,
     },
   });
 });
