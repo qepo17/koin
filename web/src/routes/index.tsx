@@ -11,6 +11,7 @@ import { RegisterPage } from "../pages/Register";
 import { DashboardPage } from "../pages/Dashboard";
 import { TransactionsPage } from "../pages/Transactions";
 import { CategoriesPage } from "../pages/Categories";
+import { SettingsPage } from "../pages/Settings";
 
 // Root layout
 const rootRoute = createRootRoute({
@@ -83,6 +84,12 @@ const categoriesRoute = createRoute({
   component: CategoriesPage,
 });
 
+const settingsRoute = createRoute({
+  getParentRoute: () => protectedLayout,
+  path: "/settings",
+  component: SettingsPage,
+});
+
 // Build route tree
 export const routeTree = rootRoute.addChildren([
   authLayout.addChildren([loginRoute, registerRoute]),
@@ -90,5 +97,6 @@ export const routeTree = rootRoute.addChildren([
     dashboardRoute,
     transactionsRoute,
     categoriesRoute,
+    settingsRoute,
   ]),
 ]);

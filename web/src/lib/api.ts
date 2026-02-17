@@ -122,6 +122,27 @@ export const summary = {
   },
 };
 
+// Skill API
+export const skill = {
+  preview: async () => {
+    try {
+      const data = await request<{ data: SkillPreview }>("/skill/preview");
+      return { ok: true as const, data: data.data };
+    } catch (error) {
+      return { ok: false as const, error };
+    }
+  },
+};
+
+// Combined API object
+export const api = {
+  auth,
+  transactions,
+  categories,
+  summary,
+  skill,
+};
+
 // Types
 export interface User {
   id: string;
@@ -176,4 +197,9 @@ export interface Summary {
     total: string;
     count: number;
   }[];
+}
+
+export interface SkillPreview {
+  baseUrl: string;
+  tokenPreview: string;
 }
