@@ -5,6 +5,7 @@ import auth from "./routes/auth";
 import transactions from "./routes/transactions";
 import categories from "./routes/categories";
 import summary from "./routes/summary";
+import skill from "./routes/skill";
 import { authMiddleware } from "./middleware/auth";
 
 export const app = new Hono();
@@ -38,6 +39,7 @@ app.use("/api/summary/*", authMiddleware);
 app.route("/api/transactions", transactions);
 app.route("/api/categories", categories);
 app.route("/api/summary", summary);
+app.route("/api/skill", skill);
 
 // 404 handler
 app.notFound((c) => {

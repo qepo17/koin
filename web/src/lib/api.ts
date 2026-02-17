@@ -122,6 +122,37 @@ export const summary = {
   },
 };
 
+// Skill API
+export const skill = {
+  preview: async () => {
+    try {
+      const data = await request<{ data: SkillPreview }>("/skill/preview");
+      return { ok: true as const, data: data.data };
+    } catch (error) {
+      return { ok: false as const, error };
+    }
+  },
+  listTokens: () => request<{ data: ApiToken[] }>("/skill/tokens"),
+  createToken: (body: { name: string; expiresIn: string }) =>
+    request<{ data: ApiToken & { token: string } }>("/skill/tokens", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  revokeToken: (id: string) =>
+    request<{ data: { message: string } }>(`/skill/tokens/${id}`, {
+      method: "DELETE",
+    }),
+};
+
+// Combined API object
+export const api = {
+  auth,
+  transactions,
+  categories,
+  summary,
+  skill,
+};
+
 // Types
 export interface User {
   id: string;
@@ -176,4 +207,17 @@ export interface Summary {
     total: string;
     count: number;
   }[];
+}
+
+export interface SkillPreview {
+  baseUrl: string;
+}
+
+export interface ApiToken {
+  id: string;
+  name: string;
+  tokenPrefix: string;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  createdAt: string;
 }

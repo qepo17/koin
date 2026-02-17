@@ -79,3 +79,38 @@ export function getTokenFromRequest(c: Context): string | null {
   
   return null;
 }
+
+// ============================================
+// API Token functions (for integrations)
+// ============================================
+
+const API_TOKEN_PREFIX = "koin_";
+
+// Generate a random API token
+export function generateApiToken(): string {
+  const randomBytes = crypto.getRandomValues(new Uint8Array(32));
+  const base64 = btoa(String.fromCharCode(...randomBytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
+  return `${API_TOKEN_PREFIX}${base64}`;
+}
+
+// Hash an API token for storage
+export async function hashApiToken(token: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(token);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Get the prefix for display (e.g., "koin_abc1...")
+export function getApiTokenPrefix(token: string): string {
+  return token.slice(0, 12) + "...";
+}
+
+// Check if a token looks like an API token (vs JWT)
+export function isApiToken(token: string): boolean {
+  return token.startsWith(API_TOKEN_PREFIX);
+}

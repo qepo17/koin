@@ -15,6 +15,20 @@
       "when": 1771292674788,
       "tag": "0001_organic_selene",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1771301933368,
+      "tag": "0002_kind_malice",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1771305359235,
+      "tag": "0003_add-token-hash-index",
+      "breakpoints": true
     }
   ]
 }

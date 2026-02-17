@@ -35,6 +35,7 @@ export async function cleanupTables() {
   await db.delete(schema.transactions);
   await db.delete(schema.budgets);
   await db.delete(schema.categories);
+  await db.delete(schema.apiTokens);
   await db.delete(schema.users);
 }
 

@@ -2,19 +2,19 @@
 
 Manage personal finances through the Koin API.
 
-## Base URL
+## Configuration
 
+Set these environment variables before using:
+```bash
+export KOIN_API_URL="{{API_URL}}"
+export KOIN_API_TOKEN="<your-token-here>"
 ```
-http://localhost:3000/api
-```
-
-Set via environment: `KOIN_API_URL`
 
 ## Authentication
 
-None required (local API). Add auth header if configured:
-```
-Authorization: Bearer <token>
+All requests require the Bearer token:
+```bash
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/endpoint"
 ```
 
 ## Endpoints
@@ -23,7 +23,8 @@ Authorization: Bearer <token>
 
 #### List Transactions
 ```bash
-curl "$KOIN_API_URL/transactions?startDate=2024-01-01&endDate=2024-12-31&type=expense"
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  "$KOIN_API_URL/transactions?startDate=2024-01-01&endDate=2024-12-31&type=expense"
 ```
 
 Query params:
@@ -34,8 +35,9 @@ Query params:
 
 #### Create Transaction
 ```bash
-curl -X POST "$KOIN_API_URL/transactions" \
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
   -H "Content-Type: application/json" \
+  "$KOIN_API_URL/transactions" \
   -d '{
     "type": "expense",
     "amount": "25.50",
@@ -50,32 +52,34 @@ Optional: `description`, `categoryId`, `date` (defaults to now)
 
 #### Get Transaction
 ```bash
-curl "$KOIN_API_URL/transactions/:id"
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/transactions/:id"
 ```
 
 #### Update Transaction
 ```bash
-curl -X PATCH "$KOIN_API_URL/transactions/:id" \
+curl -X PATCH -H "Authorization: Bearer $KOIN_API_TOKEN" \
   -H "Content-Type: application/json" \
+  "$KOIN_API_URL/transactions/:id" \
   -d '{"amount": "30.00"}'
 ```
 
 #### Delete Transaction
 ```bash
-curl -X DELETE "$KOIN_API_URL/transactions/:id"
+curl -X DELETE -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/transactions/:id"
 ```
 
 ### Categories
 
 #### List Categories
 ```bash
-curl "$KOIN_API_URL/categories"
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/categories"
 ```
 
 #### Create Category
 ```bash
-curl -X POST "$KOIN_API_URL/categories" \
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
   -H "Content-Type: application/json" \
+  "$KOIN_API_URL/categories" \
   -d '{
     "name": "Food & Dining",
     "description": "Restaurants, groceries, coffee",
@@ -88,21 +92,23 @@ Optional: `description`, `color` (hex format)
 
 #### Update Category
 ```bash
-curl -X PATCH "$KOIN_API_URL/categories/:id" \
+curl -X PATCH -H "Authorization: Bearer $KOIN_API_TOKEN" \
   -H "Content-Type: application/json" \
+  "$KOIN_API_URL/categories/:id" \
   -d '{"color": "#22c55e"}'
 ```
 
 #### Delete Category
 ```bash
-curl -X DELETE "$KOIN_API_URL/categories/:id"
+curl -X DELETE -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/categories/:id"
 ```
 
 ### Summary
 
 #### Get Financial Summary
 ```bash
-curl "$KOIN_API_URL/summary?startDate=2024-01-01&endDate=2024-01-31"
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  "$KOIN_API_URL/summary?startDate=2024-01-01&endDate=2024-01-31"
 ```
 
 Returns:
@@ -123,16 +129,17 @@ Returns:
 
 ### Log an expense
 ```bash
-# Quick expense (no category)
-curl -X POST "$KOIN_API_URL/transactions" \
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
   -H "Content-Type: application/json" \
+  "$KOIN_API_URL/transactions" \
   -d '{"type": "expense", "amount": "15.00", "description": "Coffee"}'
 ```
 
 ### Log income
 ```bash
-curl -X POST "$KOIN_API_URL/transactions" \
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
   -H "Content-Type: application/json" \
+  "$KOIN_API_URL/transactions" \
   -d '{"type": "income", "amount": "3000.00", "description": "Salary"}'
 ```
 
@@ -140,7 +147,7 @@ curl -X POST "$KOIN_API_URL/transactions" \
 ```bash
 START=$(date -d "$(date +%Y-%m-01)" +%Y-%m-%dT00:00:00Z)
 END=$(date +%Y-%m-%dT23:59:59Z)
-curl "$KOIN_API_URL/summary?startDate=$START&endDate=$END"
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/summary?startDate=$START&endDate=$END"
 ```
 
 ## Response Format
@@ -159,8 +166,14 @@ Errors:
 }
 ```
 
-## Environment Variables
+## Setup Instructions
 
-- `DATABASE_URL` — PostgreSQL connection string
-- `PORT` — API port (default: 3000)
-- `KOIN_API_URL` — Full API URL for clients (e.g., `http://localhost:3000/api`)
+1. Copy this file to your AI agent's workspace (e.g., `skills/koin/SKILL.md`)
+2. The API_URL above is pre-configured for your account
+3. Create an API token in Settings → API Tokens, then set KOIN_API_TOKEN
+4. Your agent can now manage your finances using the endpoints above
+
+## Security Note
+
+This file contains your personal API token. Keep it secure and don't share it.
+If compromised, log out of all sessions from the Koin dashboard to invalidate tokens.

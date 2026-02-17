@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, decimal, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, decimal, timestamp, pgEnum, index } from "drizzle-orm/pg-core";
 
 export const transactionTypeEnum = pgEnum("transaction_type", ["income", "expense"]);
 
@@ -45,3 +45,18 @@ export const budgets = pgTable("budgets", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// API tokens for integrations (AI agents, etc.)
+export const apiTokens = pgTable("api_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  name: text("name").notNull(), // e.g., "My AI Agent", "Claude"
+  tokenHash: text("token_hash").notNull(), // hashed token for verification
+  tokenPrefix: text("token_prefix").notNull(), // first 8 chars for display (koin_xxxx...)
+  expiresAt: timestamp("expires_at"), // null = never expires
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  revokedAt: timestamp("revoked_at"), // null = active, set = revoked
+}, (table) => ({
+  tokenHashIdx: index("api_tokens_token_hash_idx").on(table.tokenHash),
+}));
