@@ -14,7 +14,7 @@ const SKILL_TEMPLATE_PATH = join(import.meta.dir, "../../SKILL.md");
 
 // Schema for creating an API token
 const createTokenSchema = z.object({
-  name: z.string().min(1).max(100),
+  name: z.string().trim().min(1, "Token name is required").max(100, "Token name must be 100 characters or less"),
   expiresIn: z.enum(["never", "7d", "30d", "90d", "1y"]).default("never"),
 });
 

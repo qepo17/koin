@@ -169,8 +169,9 @@ Errors:
 ## Setup Instructions
 
 1. Copy this file to your AI agent's workspace (e.g., `skills/koin/SKILL.md`)
-2. The API_URL and API_TOKEN above are pre-configured for your account
-3. Your agent can now manage your finances using the endpoints above
+2. The API_URL above is pre-configured for your account
+3. Create an API token in Settings → API Tokens, then set KOIN_API_TOKEN
+4. Your agent can now manage your finances using the endpoints above
 
 ## Security Note
 
