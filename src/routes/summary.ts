@@ -4,27 +4,28 @@ import { db, transactions, categories } from "../db";
 
 const app = new Hono();
 
-// Get financial summary
+// Get financial summary (scoped to user)
 app.get("/", async (c) => {
+  const userId = c.get("userId");
   const { startDate, endDate } = c.req.query();
   
-  const conditions = [];
+  const conditions = [eq(transactions.userId, userId)];
   if (startDate) conditions.push(gte(transactions.date, new Date(startDate)));
   if (endDate) conditions.push(lte(transactions.date, new Date(endDate)));
   
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const baseWhere = and(...conditions);
   
   // Total income
   const incomeResult = await db
     .select({ total: sql<string>`COALESCE(SUM(${transactions.amount}), 0)` })
     .from(transactions)
-    .where(and(eq(transactions.type, "income"), whereClause));
+    .where(and(baseWhere, eq(transactions.type, "income")));
     
   // Total expenses
   const expenseResult = await db
     .select({ total: sql<string>`COALESCE(SUM(${transactions.amount}), 0)` })
     .from(transactions)
-    .where(and(eq(transactions.type, "expense"), whereClause));
+    .where(and(baseWhere, eq(transactions.type, "expense")));
     
   // Expenses by category
   const byCategory = await db
@@ -36,7 +37,7 @@ app.get("/", async (c) => {
     })
     .from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .where(and(eq(transactions.type, "expense"), whereClause))
+    .where(and(baseWhere, eq(transactions.type, "expense")))
     .groupBy(transactions.categoryId, categories.name);
     
   const income = parseFloat(incomeResult[0]?.total || "0");

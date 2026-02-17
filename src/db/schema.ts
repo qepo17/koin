@@ -2,8 +2,19 @@ import { pgTable, uuid, text, decimal, timestamp, pgEnum } from "drizzle-orm/pg-
 
 export const transactionTypeEnum = pgEnum("transaction_type", ["income", "expense"]);
 
+// Users table
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  name: text("name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const categories = pgTable("categories", {
   id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
   name: text("name").notNull(),
   description: text("description"),
   color: text("color").default("#6b7280"),
@@ -13,6 +24,7 @@ export const categories = pgTable("categories", {
 
 export const transactions = pgTable("transactions", {
   id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
   type: transactionTypeEnum("type").notNull(),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   description: text("description"),
@@ -24,6 +36,7 @@ export const transactions = pgTable("transactions", {
 
 export const budgets = pgTable("budgets", {
   id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
   categoryId: uuid("category_id").references(() => categories.id),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   period: text("period").notNull().default("monthly"), // monthly, weekly, yearly

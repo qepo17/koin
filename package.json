@@ -9,13 +9,17 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "test": "bun test",
+    "test": "bun test tests/",
+    "test:web": "cd web && bun run test",
+    "test:all": "bun test tests/ && cd web && bun run test",
     "test:coverage": "bun test --coverage",
     "test:docker": "docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test"
   },
   "dependencies": {
-    "hono": "^4.0.0",
+    "@hono/zod-validator": "^0.4.0",
     "drizzle-orm": "^0.38.0",
+    "hono": "^4.0.0",
+    "hono-rate-limiter": "^0.5.3",
     "postgres": "^3.4.0",
     "zod": "^3.24.0"
   },

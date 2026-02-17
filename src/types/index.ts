@@ -1,5 +1,20 @@
 import { z } from "zod";
 
+// Auth schemas
+export const registerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  name: z.string().min(1).max(100).optional(),
+});
+
+export const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+export type Register = z.infer<typeof registerSchema>;
+export type Login = z.infer<typeof loginSchema>;
+
 // Transaction schemas
 export const createTransactionSchema = z.object({
   type: z.enum(["income", "expense"]),

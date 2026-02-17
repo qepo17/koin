@@ -5,29 +5,36 @@ import { createTransactionSchema, updateTransactionSchema } from "../types";
 
 const app = new Hono();
 
-// List transactions
+// List transactions (scoped to user)
 app.get("/", async (c) => {
+  const userId = c.get("userId");
   const { startDate, endDate, type, categoryId } = c.req.query();
   
-  let query = db.select().from(transactions);
-  const conditions = [];
+  const conditions = [eq(transactions.userId, userId)];
   
   if (startDate) conditions.push(gte(transactions.date, new Date(startDate)));
   if (endDate) conditions.push(lte(transactions.date, new Date(endDate)));
   if (type) conditions.push(eq(transactions.type, type as "income" | "expense"));
   if (categoryId) conditions.push(eq(transactions.categoryId, categoryId));
   
-  const result = await query
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+  const result = await db
+    .select()
+    .from(transactions)
+    .where(and(...conditions))
     .orderBy(desc(transactions.date));
     
   return c.json({ data: result });
 });
 
-// Get single transaction
+// Get single transaction (scoped to user)
 app.get("/:id", async (c) => {
+  const userId = c.get("userId");
   const id = c.req.param("id");
-  const result = await db.select().from(transactions).where(eq(transactions.id, id));
+  
+  const result = await db
+    .select()
+    .from(transactions)
+    .where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
   
   if (result.length === 0) {
     return c.json({ error: "Transaction not found" }, 404);
@@ -38,6 +45,7 @@ app.get("/:id", async (c) => {
 
 // Create transaction
 app.post("/", async (c) => {
+  const userId = c.get("userId");
   const body = await c.req.json();
   const parsed = createTransactionSchema.safeParse(body);
   
@@ -47,14 +55,16 @@ app.post("/", async (c) => {
   
   const result = await db.insert(transactions).values({
     ...parsed.data,
+    userId,
     date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
   }).returning();
   
   return c.json({ data: result[0] }, 201);
 });
 
-// Update transaction
+// Update transaction (scoped to user)
 app.patch("/:id", async (c) => {
+  const userId = c.get("userId");
   const id = c.req.param("id");
   const body = await c.req.json();
   const parsed = updateTransactionSchema.safeParse(body);
@@ -64,13 +74,14 @@ app.patch("/:id", async (c) => {
   }
   
   const { date, ...rest } = parsed.data;
-  const result = await db.update(transactions)
+  const result = await db
+    .update(transactions)
     .set({ 
       ...rest, 
       ...(date && { date: new Date(date) }),
       updatedAt: new Date() 
     })
-    .where(eq(transactions.id, id))
+    .where(and(eq(transactions.id, id), eq(transactions.userId, userId)))
     .returning();
     
   if (result.length === 0) {
@@ -80,10 +91,15 @@ app.patch("/:id", async (c) => {
   return c.json({ data: result[0] });
 });
 
-// Delete transaction
+// Delete transaction (scoped to user)
 app.delete("/:id", async (c) => {
+  const userId = c.get("userId");
   const id = c.req.param("id");
-  const result = await db.delete(transactions).where(eq(transactions.id, id)).returning();
+  
+  const result = await db
+    .delete(transactions)
+    .where(and(eq(transactions.id, id), eq(transactions.userId, userId)))
+    .returning();
   
   if (result.length === 0) {
     return c.json({ error: "Transaction not found" }, 404);
