@@ -49,6 +49,37 @@ export function createApi(token?: string) {
 // Default unauthenticated API
 export const api = createApi();
 
+// Create a test API client that tracks cookies and exposes baseUrl
+export type TestApi = ReturnType<typeof createTestApi>;
+
+export function createTestApi() {
+  let authToken: string | null = null;
+  const baseUrl = "http://localhost:3000";
+
+  const makeRequest = async (path: string, options: RequestOptions = {}) => {
+    const result = await request(path, { ...options, token: authToken || undefined });
+    
+    // Extract token from response if it's an auth response
+    if (result.data?.data?.token) {
+      authToken = result.data.data.token;
+    }
+    
+    return result;
+  };
+
+  return {
+    baseUrl,
+    get: (path: string) => makeRequest(path, { method: "GET" }),
+    post: (path: string, body: unknown) => makeRequest(path, { method: "POST", body }),
+    patch: (path: string, body: unknown) => makeRequest(path, { method: "PATCH", body }),
+    delete: (path: string) => makeRequest(path, { method: "DELETE" }),
+    getToken: () => authToken,
+    setToken: (token: string) => { authToken = token; },
+    clearToken: () => { authToken = null; },
+    getCookies: () => authToken ? `token=${authToken}` : "",
+  };
+}
+
 // Test user helpers
 let testUserCounter = 0;
 
