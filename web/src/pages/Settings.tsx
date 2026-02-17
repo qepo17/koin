@@ -1,30 +1,53 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { api } from "../lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { skill, type ApiToken } from "../lib/api";
 
 export function SettingsPage() {
+  const queryClient = useQueryClient();
   const [downloading, setDownloading] = useState(false);
-  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
+  const [newToken, setNewToken] = useState<{ token: string; name: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [tokenName, setTokenName] = useState("");
+  const [tokenExpiry, setTokenExpiry] = useState("never");
 
-  const { data: preview, isLoading } = useQuery({
+  const { data: preview, isLoading: previewLoading } = useQuery({
     queryKey: ["skill-preview"],
     queryFn: async () => {
-      const res = await api.skill.preview();
+      const res = await skill.preview();
       if (!res.ok) throw new Error("Failed to load preview");
       return res.data;
     },
   });
 
-  const generateTokenMutation = useMutation({
-    mutationFn: async () => {
-      const res = await api.skill.generateToken();
-      if (!res.ok) throw new Error("Failed to generate token");
+  const { data: tokens, isLoading: tokensLoading } = useQuery({
+    queryKey: ["api-tokens"],
+    queryFn: async () => {
+      const res = await skill.listTokens();
+      return res.data;
+    },
+  });
+
+  const createTokenMutation = useMutation({
+    mutationFn: async (data: { name: string; expiresIn: string }) => {
+      const res = await skill.createToken(data);
       return res.data;
     },
     onSuccess: (data) => {
-      setGeneratedToken(data.token);
-      setCopied(false);
+      setNewToken({ token: data.token, name: data.name });
+      setShowCreateForm(false);
+      setTokenName("");
+      setTokenExpiry("never");
+      queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
+    },
+  });
+
+  const revokeTokenMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await skill.revokeToken(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
     },
   });
 
@@ -35,9 +58,7 @@ export function SettingsPage() {
         `${import.meta.env.VITE_API_URL || ""}/api/skill/download`,
         { credentials: "include" }
       );
-      
       if (!response.ok) throw new Error("Download failed");
-      
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -56,11 +77,21 @@ export function SettingsPage() {
   };
 
   const handleCopyToken = async () => {
-    if (generatedToken) {
-      await navigator.clipboard.writeText(generatedToken);
+    if (newToken) {
+      await navigator.clipboard.writeText(newToken.token);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const handleCreateToken = () => {
+    if (!tokenName.trim()) return;
+    createTokenMutation.mutate({ name: tokenName.trim(), expiresIn: tokenExpiry });
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "Never";
+    return new Date(dateStr).toLocaleDateString();
   };
 
   return (
@@ -72,13 +103,13 @@ export function SettingsPage() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           AI Agent Integration
         </h2>
-        
+
         <p className="text-gray-600 mb-4">
-          Download a SKILL.md file and generate an API token to integrate Koin with your AI agent.
+          Download SKILL.md and create an API token to integrate Koin with your AI agent.
         </p>
 
         {/* API URL */}
-        {isLoading ? (
+        {previewLoading ? (
           <div className="text-gray-500 mb-4">Loading...</div>
         ) : preview ? (
           <div className="bg-gray-50 rounded-lg p-4 mb-4">
@@ -91,37 +122,14 @@ export function SettingsPage() {
           </div>
         ) : null}
 
-        {/* Step 1: Download SKILL.md */}
+        {/* Download SKILL.md */}
         <div className="mb-6">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">
-            Step 1: Download SKILL.md
-          </h3>
           <button
             onClick={handleDownload}
             disabled={downloading}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            {downloading ? (
-              <>
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                Downloading...
-              </>
-            ) : (
+            {downloading ? "Downloading..." : (
               <>
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -131,131 +139,164 @@ export function SettingsPage() {
             )}
           </button>
         </div>
-
-        {/* Step 2: Generate Token */}
-        <div className="mb-6">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">
-            Step 2: Generate API Token
-          </h3>
-          <button
-            onClick={() => generateTokenMutation.mutate()}
-            disabled={generateTokenMutation.isPending}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-emerald-400 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {generateTokenMutation.isPending ? (
-              <>
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                Generating...
-              </>
-            ) : (
-              <>
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                </svg>
-                Generate Token
-              </>
-            )}
-          </button>
-
-          {/* Generated Token Display */}
-          {generatedToken && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">Your API Token:</span>
-                <button
-                  onClick={handleCopyToken}
-                  className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                >
-                  {copied ? (
-                    <>
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                      Copy
-                    </>
-                  )}
-                </button>
-              </div>
-              <code className="block w-full p-3 bg-gray-900 text-green-400 text-xs rounded font-mono break-all">
-                {generatedToken}
-              </code>
-            </div>
-          )}
-        </div>
-
-        {/* Step 3: Set Environment Variable */}
-        <div className="mb-6">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">
-            Step 3: Store Token Securely
-          </h3>
-          <div className="bg-gray-900 rounded-lg p-4">
-            <code className="text-sm text-green-400 font-mono">
-              export KOIN_API_TOKEN="your-token-here"
-            </code>
-          </div>
-          <p className="text-xs text-gray-500 mt-2">
-            Add this to your shell profile (~/.bashrc, ~/.zshrc) or your agent's environment.
-          </p>
-        </div>
-
-        {/* Security Warning */}
-        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <div className="flex gap-2">
-            <svg className="h-5 w-5 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <div>
-              <p className="text-sm font-medium text-yellow-800">Security Note</p>
-              <p className="text-sm text-yellow-700 mt-1">
-                Never commit your API token to version control. Store it in environment variables or a secrets manager.
-              </p>
-            </div>
-          </div>
-        </div>
       </div>
 
-      {/* Usage Instructions */}
+      {/* Newly Created Token Display */}
+      {newToken && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+          <div className="flex items-start gap-3">
+            <svg className="h-6 w-6 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="flex-1">
+              <h3 className="font-semibold text-green-800">Token Created: {newToken.name}</h3>
+              <p className="text-sm text-green-700 mt-1">
+                Copy this token now. It won't be shown again!
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                <code className="flex-1 p-3 bg-gray-900 text-green-400 text-xs rounded font-mono break-all">
+                  {newToken.token}
+                </code>
+                <button
+                  onClick={handleCopyToken}
+                  className="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                >
+                  {copied ? "Copied!" : "Copy"}
+                </button>
+              </div>
+              <button
+                onClick={() => setNewToken(null)}
+                className="mt-3 text-sm text-green-700 hover:text-green-800"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* API Tokens */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          How to Use
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">API Tokens</h2>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="px-3 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700"
+          >
+            + Create Token
+          </button>
+        </div>
+
+        {/* Create Token Form */}
+        {showCreateForm && (
+          <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Token Name
+                </label>
+                <input
+                  type="text"
+                  value={tokenName}
+                  onChange={(e) => setTokenName(e.target.value)}
+                  placeholder="e.g., My AI Agent"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Expiration
+                </label>
+                <select
+                  value={tokenExpiry}
+                  onChange={(e) => setTokenExpiry(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                >
+                  <option value="never">Never expires</option>
+                  <option value="7d">7 days</option>
+                  <option value="30d">30 days</option>
+                  <option value="90d">90 days</option>
+                  <option value="1y">1 year</option>
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCreateToken}
+                  disabled={!tokenName.trim() || createTokenMutation.isPending}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-400"
+                >
+                  {createTokenMutation.isPending ? "Creating..." : "Create"}
+                </button>
+                <button
+                  onClick={() => { setShowCreateForm(false); setTokenName(""); }}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Token List */}
+        {tokensLoading ? (
+          <div className="text-gray-500">Loading tokens...</div>
+        ) : tokens && tokens.length > 0 ? (
+          <div className="space-y-3">
+            {tokens.map((token: ApiToken) => (
+              <div key={token.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <div className="font-medium text-gray-900">{token.name}</div>
+                  <div className="text-sm text-gray-500">
+                    <code className="bg-gray-200 px-1 rounded">{token.tokenPrefix}</code>
+                    {" · "}
+                    Expires: {formatDate(token.expiresAt)}
+                    {token.lastUsedAt && (
+                      <> · Last used: {formatDate(token.lastUsedAt)}</>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    if (confirm("Revoke this token? Any integrations using it will stop working.")) {
+                      revokeTokenMutation.mutate(token.id);
+                    }
+                  }}
+                  disabled={revokeTokenMutation.isPending}
+                  className="px-3 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded text-sm"
+                >
+                  Revoke
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-gray-500 text-center py-4">
+            No API tokens yet. Create one to integrate with your AI agent.
+          </div>
+        )}
+      </div>
+
+      {/* Security & Usage */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">How to Use</h2>
         
-        <ol className="list-decimal list-inside space-y-3 text-gray-600">
-          <li>Download the SKILL.md file and place it in your agent's skills directory</li>
-          <li>Generate an API token and store it as <code className="px-1 bg-gray-100 rounded">KOIN_API_TOKEN</code></li>
-          <li>Your agent can now manage your finances using natural language</li>
+        <ol className="list-decimal list-inside space-y-2 text-gray-600 mb-4">
+          <li>Download SKILL.md and place it in your agent's skills directory</li>
+          <li>Create an API token and copy it</li>
+          <li>Store the token as <code className="px-1 bg-gray-100 rounded">KOIN_API_TOKEN</code> environment variable</li>
         </ol>
 
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm font-medium text-gray-700 mb-2">Example commands:</p>
-          <ul className="text-sm text-gray-600 space-y-1">
-            <li>• "Log a $25 expense for lunch"</li>
-            <li>• "How much did I spend this month?"</li>
-            <li>• "Show my spending by category"</li>
-            <li>• "Add $3000 income for salary"</li>
-          </ul>
+        <div className="bg-gray-900 rounded-lg p-4 mb-4">
+          <code className="text-sm text-green-400 font-mono">
+            export KOIN_API_TOKEN="koin_your_token_here"
+          </code>
+        </div>
+
+        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p className="text-sm text-yellow-800">
+            <strong>Security:</strong> Never commit tokens to version control. Store them in environment variables or a secrets manager.
+          </p>
         </div>
       </div>
     </div>

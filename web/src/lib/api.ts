@@ -132,16 +132,16 @@ export const skill = {
       return { ok: false as const, error };
     }
   },
-  generateToken: async () => {
-    try {
-      const data = await request<{ data: { token: string } }>("/skill/token", {
-        method: "POST",
-      });
-      return { ok: true as const, data: data.data };
-    } catch (error) {
-      return { ok: false as const, error };
-    }
-  },
+  listTokens: () => request<{ data: ApiToken[] }>("/skill/tokens"),
+  createToken: (body: { name: string; expiresIn: string }) =>
+    request<{ data: ApiToken & { token: string } }>("/skill/tokens", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  revokeToken: (id: string) =>
+    request<{ data: { message: string } }>(`/skill/tokens/${id}`, {
+      method: "DELETE",
+    }),
 };
 
 // Combined API object
@@ -211,4 +211,13 @@ export interface Summary {
 
 export interface SkillPreview {
   baseUrl: string;
+}
+
+export interface ApiToken {
+  id: string;
+  name: string;
+  tokenPrefix: string;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  createdAt: string;
 }
