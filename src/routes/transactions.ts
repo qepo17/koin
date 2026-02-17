@@ -63,8 +63,13 @@ app.patch("/:id", async (c) => {
     return c.json({ error: parsed.error.issues }, 400);
   }
   
+  const { date, ...rest } = parsed.data;
   const result = await db.update(transactions)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    .set({ 
+      ...rest, 
+      ...(date && { date: new Date(date) }),
+      updatedAt: new Date() 
+    })
     .where(eq(transactions.id, id))
     .returning();
     

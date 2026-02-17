@@ -8,8 +8,7 @@ node_modules/
 # Build
 dist/
 
-# Drizzle
-drizzle/
+# Drizzle migrations are tracked
 
 # IDE
 .idea/

@@ -5,10 +5,12 @@ import transactions from "./routes/transactions";
 import categories from "./routes/categories";
 import summary from "./routes/summary";
 
-const app = new Hono();
+export const app = new Hono();
 
-// Middleware
-app.use("*", logger());
+// Middleware - skip logger in test environment
+if (process.env.NODE_ENV !== "test") {
+  app.use("*", logger());
+}
 app.use("*", cors());
 
 // Health check
@@ -38,7 +40,10 @@ app.onError((err, c) => {
 
 const port = parseInt(process.env.PORT || "3000");
 
-console.log(`🪙 Koin API running on http://localhost:${port}`);
+// Only log when not in test mode
+if (process.env.NODE_ENV !== "test") {
+  console.log(`🪙 Koin API running on http://localhost:${port}`);
+}
 
 export default {
   port,

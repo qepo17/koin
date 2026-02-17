@@ -84,6 +84,29 @@ bun run db:migrate
 bun run db:studio
 ```
 
+## Testing
+
+Tests use real PostgreSQL (no mocking) via [testcontainers](https://node.testcontainers.org/).
+
+```bash
+# Run tests with Docker (recommended)
+bun run test:docker
+# or directly:
+docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+
+# Run tests locally (requires Docker for testcontainers)
+bun test
+
+# With coverage
+bun test --coverage
+```
+
+Tests automatically:
+- Spin up a PostgreSQL container
+- Create all tables
+- Clean up between tests
+- Tear down the container when done
+
 ## License
 
 MIT
