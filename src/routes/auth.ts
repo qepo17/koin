@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq } from "drizzle-orm";
+import { eq, count } from "drizzle-orm";
 import { rateLimiter } from "hono-rate-limiter";
 import { db, users } from "../db";
 import { registerSchema, loginSchema } from "../types";
@@ -27,8 +27,20 @@ const authRateLimiter = process.env.NODE_ENV === "test"
       message: { error: "Too many requests, please try again later" },
     });
 
+// Setup status (public)
+app.get("/setup-status", async (c) => {
+  const [{ value }] = await db.select({ value: count() }).from(users);
+  return c.json({ data: { needsSetup: value === 0 } });
+});
+
 // Register
 app.post("/register", authRateLimiter, async (c) => {
+  // Only allow registration when no users exist (first-time setup)
+  const [{ value: userCount }] = await db.select({ value: count() }).from(users);
+  if (userCount > 0) {
+    return c.json({ error: "Registration is closed" }, 403);
+  }
+
   const body = await c.req.json();
   const parsed = registerSchema.safeParse(body);
 

@@ -34,6 +34,9 @@ async function request<T>(
 
 // Auth API
 export const auth = {
+  setupStatus: () =>
+    request<{ data: { needsSetup: boolean } }>("/auth/setup-status"),
+
   register: (body: { email: string; password: string; name?: string }) =>
     request<{ data: { user: User; token: string } }>("/auth/register", {
       method: "POST",
