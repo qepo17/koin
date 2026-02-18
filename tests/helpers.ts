@@ -1,4 +1,7 @@
 import { app } from "../src/index";
+import { getDb } from "../src/db";
+import { users } from "../src/db/schema";
+import { hashPassword, createToken } from "../src/lib/auth";
 
 type RequestOptions = {
   method?: string;
@@ -100,6 +103,21 @@ export async function createTestUser(userData?: { email?: string; password?: str
     token: result.data?.data?.token as string,
     response: result,
   };
+}
+
+// Create a user directly in the DB, bypassing the register endpoint.
+// Use this when you need additional users after the first (since registration is closed after setup).
+export async function createTestUserDirect(userData?: { email?: string; password?: string; name?: string }) {
+  const defaults = generateTestUser();
+  const user = { ...defaults, ...userData };
+  const passwordHash = await hashPassword(user.password);
+  const db = getDb();
+  const [inserted] = await db
+    .insert(users)
+    .values({ email: user.email.toLowerCase(), passwordHash, name: user.name })
+    .returning({ id: users.id, email: users.email, name: users.name, createdAt: users.createdAt });
+  const token = await createToken(inserted.id, inserted.email);
+  return { user, token, dbUser: inserted };
 }
 
 export async function loginTestUser(email: string, password: string) {

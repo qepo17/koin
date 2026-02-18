@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
 import { setupTestDb, teardownTestDb, cleanupTables, getTestDb } from "./setup";
-import { createApi, createTestUser } from "./helpers";
+import { createApi, createTestUser, createTestUserDirect } from "./helpers";
 import { categories } from "../src/db/schema";
 
 describe("Transactions API", () => {
@@ -140,7 +140,7 @@ describe("Transactions API", () => {
       await api.post("/api/transactions", { type: "expense", amount: "10.00" });
 
       // Create another user
-      const { token: otherToken } = await createTestUser();
+      const { token: otherToken } = await createTestUserDirect();
       const otherApi = createApi(otherToken);
 
       // Other user should not see first user's transactions
@@ -184,7 +184,7 @@ describe("Transactions API", () => {
       });
 
       // Create another user
-      const { token: otherToken } = await createTestUser();
+      const { token: otherToken } = await createTestUserDirect();
       const otherApi = createApi(otherToken);
 
       // Other user should not access first user's transaction

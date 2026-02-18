@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq } from "drizzle-orm";
+import { eq, count, sql } from "drizzle-orm";
 import { rateLimiter } from "hono-rate-limiter";
 import { db, users } from "../db";
 import { registerSchema, loginSchema } from "../types";
@@ -27,7 +27,11 @@ const authRateLimiter = process.env.NODE_ENV === "test"
       message: { error: "Too many requests, please try again later" },
     });
 
-// Register
+app.get("/setup-status", authRateLimiter, async (c) => {
+  const [{ value }] = await db.select({ value: count() }).from(users);
+  return c.json({ data: { needsSetup: value === 0 } });
+});
+
 app.post("/register", authRateLimiter, async (c) => {
   const body = await c.req.json();
   const parsed = registerSchema.safeParse(body);
@@ -37,38 +41,35 @@ app.post("/register", authRateLimiter, async (c) => {
   }
 
   const { email, password, name } = parsed.data;
+  const passwordHash = await hashPassword(password);
 
-  // Check if user exists
-  const existing = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, email.toLowerCase()));
+  // Atomic: advisory lock prevents concurrent registration race
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(1)`);
 
-  if (existing.length > 0) {
-    return c.json({ error: "Email already registered" }, 409);
+    const [{ value: userCount }] = await tx.select({ value: count() }).from(users);
+    if (userCount > 0) return null;
+
+    const [user] = await tx
+      .insert(users)
+      .values({ email: email.toLowerCase(), passwordHash, name })
+      .returning({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        createdAt: users.createdAt,
+      });
+    return user;
+  });
+
+  if (!result) {
+    return c.json({ error: "Registration is closed" }, 403);
   }
 
-  // Create user
-  const passwordHash = await hashPassword(password);
-  const [user] = await db
-    .insert(users)
-    .values({
-      email: email.toLowerCase(),
-      passwordHash,
-      name,
-    })
-    .returning({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      createdAt: users.createdAt,
-    });
-
-  // Create token and set cookie
-  const token = await createToken(user.id, user.email);
+  const token = await createToken(result.id, result.email);
   setAuthCookie(c, token);
 
-  return c.json({ data: { user, token } }, 201);
+  return c.json({ data: { user: result, token } }, 201);
 });
 
 // Login

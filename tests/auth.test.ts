@@ -29,14 +29,14 @@ describe("Auth API", () => {
       expect(data.data.user.password).toBeUndefined();
     });
 
-    it("should reject duplicate email", async () => {
+    it("should reject registration when a user already exists", async () => {
       const user = generateTestUser();
       await api.post("/api/auth/register", user);
 
-      const { status, data } = await api.post("/api/auth/register", user);
+      const { status, data } = await api.post("/api/auth/register", generateTestUser());
 
-      expect(status).toBe(409);
-      expect(data.error).toBe("Email already registered");
+      expect(status).toBe(403);
+      expect(data.error).toBe("Registration is closed");
     });
 
     it("should reject invalid email", async () => {

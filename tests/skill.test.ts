@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { setupTestDb, teardownTestDb } from "./setup";
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
+import { setupTestDb, teardownTestDb, cleanupTables } from "./setup";
 import { createTestApi, generateTestUser, type TestApi } from "./helpers";
 import { app } from "../src/index";
 
@@ -8,17 +8,21 @@ describe("Skill API", () => {
 
   beforeAll(async () => {
     await setupTestDb();
-    api = createTestApi();
   });
 
   afterAll(async () => {
     await teardownTestDb();
   });
 
+  beforeEach(async () => {
+    await cleanupTables();
+    api = createTestApi();
+    const user = generateTestUser();
+    await api.post("/api/auth/register", user);
+  });
+
   describe("GET /api/skill/download", () => {
     it("should return SKILL.md with API URL placeholder replaced", async () => {
-      const user = generateTestUser();
-      await api.post("/api/auth/register", user);
 
       const response = await app.fetch(
         new Request("http://localhost/api/skill/download", {
@@ -49,9 +53,6 @@ describe("Skill API", () => {
 
   describe("GET /api/skill/preview", () => {
     it("should return preview with base URL", async () => {
-      const user = generateTestUser();
-      await api.post("/api/auth/register", user);
-
       const { status, data } = await api.get("/api/skill/preview");
 
       expect(status).toBe(200);
@@ -68,9 +69,6 @@ describe("Skill API", () => {
 
   describe("POST /api/skill/tokens", () => {
     it("should create a new API token", async () => {
-      const user = generateTestUser();
-      await api.post("/api/auth/register", user);
-
       const { status, data } = await api.post("/api/skill/tokens", {
         name: "Test Agent",
         expiresIn: "never",
@@ -86,9 +84,6 @@ describe("Skill API", () => {
     });
 
     it("should create token with expiration", async () => {
-      const user = generateTestUser();
-      await api.post("/api/auth/register", user);
-
       const { status, data } = await api.post("/api/skill/tokens", {
         name: "Expiring Token",
         expiresIn: "7d",
@@ -116,16 +111,11 @@ describe("Skill API", () => {
 
   describe("GET /api/skill/tokens", () => {
     it("should list user tokens", async () => {
-      // Use a fresh API instance for isolation
-      const freshApi = createTestApi();
-      const user = generateTestUser();
-      await freshApi.post("/api/auth/register", user);
-      
       // Create tokens
-      await freshApi.post("/api/skill/tokens", { name: "Token 1", expiresIn: "never" });
-      await freshApi.post("/api/skill/tokens", { name: "Token 2", expiresIn: "30d" });
+      await api.post("/api/skill/tokens", { name: "Token 1", expiresIn: "never" });
+      await api.post("/api/skill/tokens", { name: "Token 2", expiresIn: "30d" });
 
-      const { status, data } = await freshApi.get("/api/skill/tokens");
+      const { status, data } = await api.get("/api/skill/tokens");
 
       expect(status).toBe(200);
       expect(data.data).toBeArray();
@@ -138,10 +128,6 @@ describe("Skill API", () => {
 
   describe("DELETE /api/skill/tokens/:id", () => {
     it("should revoke a token", async () => {
-      const user = generateTestUser();
-      const regResult = await api.post("/api/auth/register", user);
-      const sessionToken = regResult.data?.data?.token;
-      
       // Create an API token
       const createResult = await api.post("/api/skill/tokens", {
         name: "To Revoke",
@@ -164,9 +150,6 @@ describe("Skill API", () => {
     });
 
     it("should return 404 for non-existent token", async () => {
-      const user = generateTestUser();
-      await api.post("/api/auth/register", user);
-
       const { status } = await api.delete("/api/skill/tokens/00000000-0000-0000-0000-000000000000");
       expect(status).toBe(404);
     });
@@ -174,9 +157,6 @@ describe("Skill API", () => {
 
   describe("API Token Authentication", () => {
     it("should authenticate with API token", async () => {
-      const user = generateTestUser();
-      await api.post("/api/auth/register", user);
-      
       // Create an API token
       const { data: tokenData } = await api.post("/api/skill/tokens", {
         name: "Auth Test",
@@ -195,9 +175,6 @@ describe("Skill API", () => {
     });
 
     it("should reject revoked API token", async () => {
-      const user = generateTestUser();
-      await api.post("/api/auth/register", user);
-      
       // Create and revoke a token
       const { data: tokenData } = await api.post("/api/skill/tokens", {
         name: "Revoked Token",
