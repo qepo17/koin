@@ -21,7 +21,7 @@ export function SetupPage() {
 
     try {
       await register(email, password, name || undefined);
-      queryClient.invalidateQueries({ queryKey: ["setup-status"] });
+      queryClient.setQueryData(["setup-status"], { data: { needsSetup: false } });
       navigate({ to: "/" });
     } catch (err) {
       if (err instanceof ApiError) {
