@@ -1,8 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { summary, transactions } from "../lib/api";
 import { Link } from "@tanstack/react-router";
+import { useAuth } from "../hooks/useAuth";
+import { formatCurrency, formatCurrencyWithSign } from "../lib/currency";
 
 export function DashboardPage() {
+  const { user } = useAuth();
+  const currency = user?.currency || "USD";
+
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: ["summary"],
     queryFn: () => summary.get(),
@@ -27,18 +32,21 @@ export function DashboardPage() {
         <StatCard
           title="Income"
           value={stats?.income ?? 0}
+          currency={currency}
           isLoading={summaryLoading}
           color="green"
         />
         <StatCard
           title="Expenses"
           value={stats?.expenses ?? 0}
+          currency={currency}
           isLoading={summaryLoading}
           color="red"
         />
         <StatCard
           title="Balance"
           value={stats?.balance ?? 0}
+          currency={currency}
           isLoading={summaryLoading}
           color="blue"
         />
@@ -87,8 +95,7 @@ export function DashboardPage() {
                     tx.type === "income" ? "text-green-600" : "text-red-600"
                   }`}
                 >
-                  {tx.type === "income" ? "+" : "-"}$
-                  {parseFloat(tx.amount).toFixed(2)}
+                  {formatCurrencyWithSign(tx.amount, currency, tx.type)}
                 </span>
               </li>
             ))}
@@ -114,7 +121,7 @@ export function DashboardPage() {
                   {cat.categoryName || "Uncategorized"}
                 </span>
                 <span className="font-medium text-gray-900">
-                  ${parseFloat(cat.total).toFixed(2)}
+                  {formatCurrency(cat.total, currency)}
                 </span>
               </li>
             ))}
@@ -128,11 +135,13 @@ export function DashboardPage() {
 function StatCard({
   title,
   value,
+  currency,
   isLoading,
   color,
 }: {
   title: string;
   value: number;
+  currency: string;
   isLoading: boolean;
   color: "green" | "red" | "blue";
 }) {
@@ -149,7 +158,7 @@ function StatCard({
         <div className="mt-2 h-8 bg-gray-200 rounded animate-pulse" />
       ) : (
         <p className={`mt-2 text-3xl font-bold ${colorClasses[color]}`}>
-          ${value.toFixed(2)}
+          {formatCurrency(value, currency)}
         </p>
       )}
     </div>
