@@ -125,6 +125,33 @@ Returns:
 }
 ```
 
+### Settings
+
+#### Get User Settings
+```bash
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/settings"
+```
+
+Returns:
+```json
+{
+  "data": {
+    "currency": "USD",
+    "name": "John Doe"
+  }
+}
+```
+
+#### Update User Settings
+```bash
+curl -X PATCH -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/settings" \
+  -d '{"currency": "EUR"}'
+```
+
+Optional fields: `currency` (3-char code, e.g., USD, EUR, IDR), `name`
+
 ## Common Tasks
 
 ### Log an expense
