@@ -109,6 +109,7 @@ app.post("/login", authRateLimiter, async (c) => {
         id: user.id,
         email: user.email,
         name: user.name,
+        currency: user.currency,
         createdAt: user.createdAt,
       },
       token,
@@ -141,6 +142,7 @@ app.get("/me", async (c) => {
       id: users.id,
       email: users.email,
       name: users.name,
+      currency: users.currency,
       createdAt: users.createdAt,
     })
     .from(users)

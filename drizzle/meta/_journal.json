@@ -29,6 +29,13 @@
       "when": 1771305359235,
       "tag": "0003_add-token-hash-index",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1771507379109,
+      "tag": "0004_silly_chimera",
+      "breakpoints": true
     }
   ]
 }
