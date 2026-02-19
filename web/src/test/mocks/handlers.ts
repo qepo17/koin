@@ -54,6 +54,7 @@ const mockCategories = [
 const mockSummary = {
   income: 3000,
   expenses: 25.5,
+  adjustments: 0,
   balance: 2974.5,
   byCategory: [
     { categoryId: "cat-1", categoryName: "Food & Dining", total: "25.50", count: 1 },

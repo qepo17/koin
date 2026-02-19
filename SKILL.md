@@ -30,7 +30,7 @@ curl -H "Authorization: Bearer $KOIN_API_TOKEN" \
 Query params:
 - `startDate` — ISO datetime filter (inclusive)
 - `endDate` — ISO datetime filter (inclusive)
-- `type` — `income` or `expense`
+- `type` — `income`, `expense`, or `adjustment`
 - `categoryId` — UUID of category
 
 #### Create Transaction
@@ -48,7 +48,12 @@ curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
 ```
 
 Required: `type`, `amount`
+- `type` — `income`, `expense`, or `adjustment`
+- `amount` — positive for income/expense, positive or negative for adjustment
+
 Optional: `description`, `categoryId`, `date` (defaults to now)
+
+**Note:** Use `adjustment` type for balance corrections (e.g., starting balance, corrections). Positive values add to balance, negative values subtract.
 
 #### Get Transaction
 ```bash
@@ -117,13 +122,16 @@ Returns:
   "data": {
     "income": 5000.00,
     "expenses": 2500.00,
-    "balance": 2500.00,
+    "adjustments": 100.00,
+    "balance": 2600.00,
     "byCategory": [
       {"categoryId": "...", "categoryName": "Food", "total": "500.00", "count": 15}
     ]
   }
 }
 ```
+
+Balance formula: `income - expenses + adjustments`
 
 ### Settings
 
@@ -168,6 +176,22 @@ curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
   -H "Content-Type: application/json" \
   "$KOIN_API_URL/transactions" \
   -d '{"type": "income", "amount": "3000.00", "description": "Salary"}'
+```
+
+### Set starting balance
+```bash
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/transactions" \
+  -d '{"type": "adjustment", "amount": "5000.00", "description": "Starting balance"}'
+```
+
+### Correct balance (negative adjustment)
+```bash
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/transactions" \
+  -d '{"type": "adjustment", "amount": "-50.00", "description": "Correction for missing expense"}'
 ```
 
 ### Check this month's spending

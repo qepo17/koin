@@ -28,7 +28,7 @@ export function DashboardPage() {
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className={`grid grid-cols-1 gap-6 mb-8 ${stats?.adjustments ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
         <StatCard
           title="Income"
           value={stats?.income ?? 0}
@@ -43,6 +43,16 @@ export function DashboardPage() {
           isLoading={summaryLoading}
           color="red"
         />
+        {stats?.adjustments !== undefined && stats.adjustments !== 0 && (
+          <StatCard
+            title="Adjustments"
+            value={stats.adjustments}
+            currency={currency}
+            isLoading={summaryLoading}
+            color="purple"
+            showSign
+          />
+        )}
         <StatCard
           title="Balance"
           value={stats?.balance ?? 0}
@@ -92,7 +102,11 @@ export function DashboardPage() {
                 </div>
                 <span
                   className={`font-semibold ${
-                    tx.type === "income" ? "text-green-600" : "text-red-600"
+                    tx.type === "income"
+                      ? "text-green-600"
+                      : tx.type === "expense"
+                      ? "text-red-600"
+                      : "text-purple-600"
                   }`}
                 >
                   {formatCurrencyWithSign(tx.amount, currency, tx.type)}
@@ -138,18 +152,25 @@ function StatCard({
   currency,
   isLoading,
   color,
+  showSign = false,
 }: {
   title: string;
   value: number;
   currency: string;
   isLoading: boolean;
-  color: "green" | "red" | "blue";
+  color: "green" | "red" | "blue" | "purple";
+  showSign?: boolean;
 }) {
   const colorClasses = {
     green: "text-green-600",
     red: "text-red-600",
     blue: "text-blue-600",
+    purple: "text-purple-600",
   };
+
+  const formattedValue = showSign
+    ? `${value >= 0 ? "+" : ""}${formatCurrency(value, currency)}`
+    : formatCurrency(value, currency);
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -158,7 +179,7 @@ function StatCard({
         <div className="mt-2 h-8 bg-gray-200 rounded animate-pulse" />
       ) : (
         <p className={`mt-2 text-3xl font-bold ${colorClasses[color]}`}>
-          {formatCurrency(value, currency)}
+          {formattedValue}
         </p>
       )}
     </div>

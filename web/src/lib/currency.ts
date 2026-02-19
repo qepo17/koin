@@ -52,10 +52,17 @@ export function formatCurrency(amount: number | string, currency: string): strin
 export function formatCurrencyWithSign(
   amount: number | string,
   currency: string,
-  type: "income" | "expense"
+  type: "income" | "expense" | "adjustment"
 ): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
   const symbol = getCurrencySymbol(currency);
+  
+  if (type === "adjustment") {
+    // For adjustments, sign depends on whether amount is positive or negative
+    const sign = num >= 0 ? "+" : "";
+    return `${sign}${symbol}${formatNumber(num)}`;
+  }
+  
   const sign = type === "income" ? "+" : "-";
-  return `${sign}${symbol}${formatNumber(num)}`;
+  return `${sign}${symbol}${formatNumber(Math.abs(num))}`;
 }

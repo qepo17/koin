@@ -17,7 +17,7 @@ export type Login = z.infer<typeof loginSchema>;
 
 // Transaction schemas
 export const createTransactionSchema = z.object({
-  type: z.enum(["income", "expense"]),
+  type: z.enum(["income", "expense", "adjustment"]),
   amount: z.string().or(z.number()).transform((v) => String(v)),
   description: z.string().optional(),
   categoryId: z.string().uuid().optional(),
