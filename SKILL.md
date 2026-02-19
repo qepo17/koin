@@ -199,8 +199,3 @@ Errors:
 2. The API_URL above is pre-configured for your account
 3. Create an API token in Settings → API Tokens, then set KOIN_API_TOKEN
 4. Your agent can now manage your finances using the endpoints above
-
-## Security Note
-
-This file contains your personal API token. Keep it secure and don't share it.
-If compromised, log out of all sessions from the Koin dashboard to invalidate tokens.
