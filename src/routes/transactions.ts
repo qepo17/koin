@@ -14,7 +14,7 @@ app.get("/", async (c) => {
   
   if (startDate) conditions.push(gte(transactions.date, new Date(startDate)));
   if (endDate) conditions.push(lte(transactions.date, new Date(endDate)));
-  if (type) conditions.push(eq(transactions.type, type as "income" | "expense"));
+  if (type) conditions.push(eq(transactions.type, type as "income" | "expense" | "adjustment"));
   if (categoryId) conditions.push(eq(transactions.categoryId, categoryId));
   
   const result = await db
