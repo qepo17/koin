@@ -111,8 +111,6 @@ export function TransactionsPage() {
                         ? "text-green-600"
                         : tx.type === "expense"
                         ? "text-red-600"
-                        : parseFloat(tx.amount) >= 0
-                        ? "text-purple-600"
                         : "text-purple-600"
                     }`}
                   >
