@@ -15,6 +15,8 @@ CMD ["bun", "run", "dev", "--host"]
 
 # Build for production
 FROM base AS builder
+ARG VITE_API_URL=http://localhost:3000
+ENV VITE_API_URL=${VITE_API_URL}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN bun run build
