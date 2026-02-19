@@ -28,16 +28,26 @@ export function getCurrencySymbol(currency: string): string {
 }
 
 /**
- * Format amount with currency symbol
+ * Format number with thousand separators
+ */
+export function formatNumber(num: number, decimals: number = 2): string {
+  return num.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+/**
+ * Format amount with currency symbol and thousand separators
  */
 export function formatCurrency(amount: number | string, currency: string): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
   const symbol = getCurrencySymbol(currency);
-  return `${symbol}${num.toFixed(2)}`;
+  return `${symbol}${formatNumber(num)}`;
 }
 
 /**
- * Format amount with sign and currency symbol
+ * Format amount with sign, currency symbol, and thousand separators
  */
 export function formatCurrencyWithSign(
   amount: number | string,
@@ -47,5 +57,5 @@ export function formatCurrencyWithSign(
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
   const symbol = getCurrencySymbol(currency);
   const sign = type === "income" ? "+" : "-";
-  return `${sign}${symbol}${num.toFixed(2)}`;
+  return `${sign}${symbol}${formatNumber(num)}`;
 }

@@ -36,8 +36,9 @@ describe("DashboardPage", () => {
     });
 
     // Check that stat values are rendered (use getAllBy since values may appear multiple times)
+    // Values are formatted with thousand separators: $3,000.00
     await waitFor(() => {
-      expect(screen.getAllByText(/\$3000\.00/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/\$3,000\.00/).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/\$25\.50/).length).toBeGreaterThan(0);
     });
   });
