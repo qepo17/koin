@@ -5,7 +5,13 @@ const mockUser = {
   id: "user-1",
   email: "test@example.com",
   name: "Test User",
+  currency: "USD",
   createdAt: new Date().toISOString(),
+};
+
+const mockSettings = {
+  currency: "USD",
+  name: "Test User",
 };
 
 const mockTransactions = [
@@ -168,6 +174,67 @@ export const handlers = [
       return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     return HttpResponse.json({ data: mockSummary });
+  }),
+
+  // Settings handlers
+  http.get("/api/settings", () => {
+    if (!isAuthenticated) {
+      return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    return HttpResponse.json({ data: mockSettings });
+  }),
+
+  http.patch("/api/settings", async ({ request }) => {
+    if (!isAuthenticated) {
+      return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const body = (await request.json()) as Record<string, unknown>;
+    
+    if (body.currency !== undefined) {
+      const currency = String(body.currency);
+      if (currency.length !== 3) {
+        return HttpResponse.json({ error: [{ message: "Currency must be 3 characters" }] }, { status: 400 });
+      }
+      mockSettings.currency = currency.toUpperCase();
+    }
+    if (body.name !== undefined) {
+      mockSettings.name = body.name as string;
+    }
+    
+    return HttpResponse.json({ data: mockSettings });
+  }),
+
+  // Skill handlers
+  http.get("/api/skill/preview", () => {
+    if (!isAuthenticated) {
+      return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    return HttpResponse.json({ data: { baseUrl: "http://localhost:3000/api" } });
+  }),
+
+  http.get("/api/skill/tokens", () => {
+    if (!isAuthenticated) {
+      return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    return HttpResponse.json({ data: [] });
+  }),
+
+  http.post("/api/skill/tokens", async ({ request }) => {
+    if (!isAuthenticated) {
+      return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const body = (await request.json()) as { name: string; expiresIn: string };
+    return HttpResponse.json({
+      data: {
+        id: `token-${Date.now()}`,
+        name: body.name,
+        tokenPrefix: "koin_xxxx",
+        token: "koin_test_token_123",
+        expiresAt: body.expiresIn === "never" ? null : new Date(Date.now() + 86400000).toISOString(),
+        lastUsedAt: null,
+        createdAt: new Date().toISOString(),
+      },
+    });
   }),
 ];
 

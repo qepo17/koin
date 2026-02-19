@@ -1,6 +1,27 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { skill, type ApiToken } from "../lib/api";
+import { skill, settings, type ApiToken, type Settings } from "../lib/api";
+
+const CURRENCIES = [
+  { code: "USD", name: "US Dollar", symbol: "$" },
+  { code: "EUR", name: "Euro", symbol: "€" },
+  { code: "GBP", name: "British Pound", symbol: "£" },
+  { code: "JPY", name: "Japanese Yen", symbol: "¥" },
+  { code: "CNY", name: "Chinese Yuan", symbol: "¥" },
+  { code: "INR", name: "Indian Rupee", symbol: "₹" },
+  { code: "CAD", name: "Canadian Dollar", symbol: "$" },
+  { code: "AUD", name: "Australian Dollar", symbol: "$" },
+  { code: "CHF", name: "Swiss Franc", symbol: "Fr" },
+  { code: "KRW", name: "South Korean Won", symbol: "₩" },
+  { code: "SGD", name: "Singapore Dollar", symbol: "$" },
+  { code: "IDR", name: "Indonesian Rupiah", symbol: "Rp" },
+  { code: "MYR", name: "Malaysian Ringgit", symbol: "RM" },
+  { code: "THB", name: "Thai Baht", symbol: "฿" },
+  { code: "VND", name: "Vietnamese Dong", symbol: "₫" },
+  { code: "PHP", name: "Philippine Peso", symbol: "₱" },
+  { code: "BRL", name: "Brazilian Real", symbol: "R$" },
+  { code: "MXN", name: "Mexican Peso", symbol: "$" },
+];
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -10,6 +31,32 @@ export function SettingsPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [tokenName, setTokenName] = useState("");
   const [tokenExpiry, setTokenExpiry] = useState("never");
+  const [currencySaved, setCurrencySaved] = useState(false);
+
+  const { data: userSettings, isLoading: settingsLoading } = useQuery({
+    queryKey: ["settings"],
+    queryFn: async () => {
+      const res = await settings.get();
+      return res.data;
+    },
+  });
+
+  const updateSettingsMutation = useMutation({
+    mutationFn: async (data: Partial<Settings>) => {
+      const res = await settings.update(data);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      queryClient.invalidateQueries({ queryKey: ["user"] });
+      setCurrencySaved(true);
+      setTimeout(() => setCurrencySaved(false), 2000);
+    },
+  });
+
+  const handleCurrencyChange = (currency: string) => {
+    updateSettingsMutation.mutate({ currency });
+  };
 
   const { data: preview, isLoading: previewLoading } = useQuery({
     queryKey: ["skill-preview"],
@@ -97,6 +144,52 @@ export function SettingsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+
+      {/* Preferences */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Preferences</h2>
+
+        <div className="space-y-4">
+          {/* Currency */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Currency
+            </label>
+            {settingsLoading ? (
+              <div className="text-gray-500">Loading...</div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <select
+                  value={userSettings?.currency || "USD"}
+                  onChange={(e) => handleCurrencyChange(e.target.value)}
+                  disabled={updateSettingsMutation.isPending}
+                  className="w-full max-w-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-gray-100"
+                >
+                  {CURRENCIES.map((currency) => (
+                    <option key={currency.code} value={currency.code}>
+                      {currency.code} - {currency.name} ({currency.symbol})
+                    </option>
+                  ))}
+                </select>
+                {updateSettingsMutation.isPending && (
+                  <span className="text-sm text-gray-500">Saving...</span>
+                )}
+                {currencySaved && (
+                  <span className="text-sm text-green-600 flex items-center gap-1">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Saved
+                  </span>
+                )}
+              </div>
+            )}
+            <p className="mt-1 text-sm text-gray-500">
+              This will be used to display amounts throughout the app.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* AI Agent Integration */}
       <div className="bg-white rounded-lg shadow p-6">

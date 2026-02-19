@@ -58,3 +58,11 @@ export type CreateCategory = z.infer<typeof createCategorySchema>;
 export type UpdateCategory = z.infer<typeof updateCategorySchema>;
 export type CreateBudget = z.infer<typeof createBudgetSchema>;
 export type UpdateBudget = z.infer<typeof updateBudgetSchema>;
+
+// Settings schemas
+export const updateSettingsSchema = z.object({
+  currency: z.string().length(3).toUpperCase().optional(),
+  name: z.string().min(1).max(100).optional(),
+});
+
+export type UpdateSettings = z.infer<typeof updateSettingsSchema>;

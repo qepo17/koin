@@ -125,6 +125,16 @@ export const summary = {
   },
 };
 
+// Settings API
+export const settings = {
+  get: () => request<{ data: Settings }>("/settings"),
+  update: (body: Partial<Settings>) =>
+    request<{ data: Settings }>("/settings", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+};
+
 // Skill API
 export const skill = {
   preview: async () => {
@@ -153,6 +163,7 @@ export const api = {
   transactions,
   categories,
   summary,
+  settings,
   skill,
 };
 
@@ -161,7 +172,13 @@ export interface User {
   id: string;
   email: string;
   name: string | null;
+  currency: string;
   createdAt: string;
+}
+
+export interface Settings {
+  currency: string;
+  name: string | null;
 }
 
 export interface Transaction {
