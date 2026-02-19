@@ -6,8 +6,12 @@ import {
   type Transaction,
   type CreateTransaction,
 } from "../lib/api";
+import { useAuth } from "../hooks/useAuth";
+import { formatCurrencyWithSign } from "../lib/currency";
 
 export function TransactionsPage() {
+  const { user } = useAuth();
+  const currency = user?.currency || "USD";
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -104,8 +108,7 @@ export function TransactionsPage() {
                       tx.type === "income" ? "text-green-600" : "text-red-600"
                     }`}
                   >
-                    {tx.type === "income" ? "+" : "-"}$
-                    {parseFloat(tx.amount).toFixed(2)}
+                    {formatCurrencyWithSign(tx.amount, currency, tx.type)}
                   </span>
                   <button
                     onClick={() => {
