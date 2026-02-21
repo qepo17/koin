@@ -59,11 +59,12 @@ export const auth = {
 
 // Transactions API
 export const transactions = {
-  list: (params?: { startDate?: string; endDate?: string; type?: string }) => {
+  list: (params?: { startDate?: string; endDate?: string; type?: string; categoryId?: string }) => {
     const searchParams = new URLSearchParams();
     if (params?.startDate) searchParams.set("startDate", params.startDate);
     if (params?.endDate) searchParams.set("endDate", params.endDate);
     if (params?.type) searchParams.set("type", params.type);
+    if (params?.categoryId) searchParams.set("categoryId", params.categoryId);
     const query = searchParams.toString();
     return request<{ data: Transaction[] }>(
       `/transactions${query ? `?${query}` : ""}`

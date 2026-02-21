@@ -221,4 +221,87 @@ describe("TransactionsPage", () => {
       expect(screen.queryByRole("button", { name: /save/i })).not.toBeInTheDocument();
     });
   });
+
+  it("displays filter controls", async () => {
+    renderWithProviders(<TransactionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/start date/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/end date/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/category/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows category options in filter dropdown", async () => {
+    renderWithProviders(<TransactionsPage />);
+
+    // Wait for data to load
+    await waitFor(() => {
+      expect(screen.getByText(/coffee/i)).toBeInTheDocument();
+    });
+
+    // Check category dropdown exists with default option
+    const categorySelect = screen.getByLabelText(/category/i) as HTMLSelectElement;
+    expect(categorySelect).toBeInTheDocument();
+    
+    // First option should be "All categories"
+    expect(categorySelect.options[0].textContent).toBe("All categories");
+  });
+
+  it("shows clear filters button when filters are active", async () => {
+    renderWithProviders(<TransactionsPage />);
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/start date/i)).toBeInTheDocument();
+    });
+
+    // Initially no clear button
+    expect(screen.queryByText(/clear filters/i)).not.toBeInTheDocument();
+
+    // Set a start date
+    const startDateInput = screen.getByLabelText(/start date/i);
+    await user.type(startDateInput, "2026-01-01");
+
+    // Clear filters button should appear
+    await waitFor(() => {
+      expect(screen.getByText(/clear filters/i)).toBeInTheDocument();
+    });
+  });
+
+  it("can clear filters", async () => {
+    renderWithProviders(<TransactionsPage />);
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/start date/i)).toBeInTheDocument();
+    });
+
+    // Set filters
+    const startDateInput = screen.getByLabelText(/start date/i);
+    await user.type(startDateInput, "2026-01-01");
+
+    await waitFor(() => {
+      expect(screen.getByText(/clear filters/i)).toBeInTheDocument();
+    });
+
+    // Clear filters
+    await user.click(screen.getByText(/clear filters/i));
+
+    // Clear button should disappear
+    await waitFor(() => {
+      expect(screen.queryByText(/clear filters/i)).not.toBeInTheDocument();
+    });
+
+    // Input should be cleared
+    expect(startDateInput).toHaveValue("");
+  });
+
+  it("shows transaction count", async () => {
+    renderWithProviders(<TransactionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/3 transactions/i)).toBeInTheDocument();
+    });
+  });
 });
