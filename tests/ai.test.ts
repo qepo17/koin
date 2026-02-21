@@ -217,7 +217,7 @@ describe("AI Command Endpoint", () => {
   });
 
   describe("GET /api/ai/command/:id", () => {
-    it("should return command status per #30 spec", async () => {
+    it("should return command status per #32 spec", async () => {
       mockOpenRouter(
         "Test interpretation",
         { description_contains: "coffee" },
@@ -231,13 +231,16 @@ describe("AI Command Endpoint", () => {
       const { status, data } = await api.get(`/api/ai/command/${createData.data.commandId}`);
 
       expect(status).toBe(200);
-      expect(data.data.commandId).toBe(createData.data.commandId);
+      // #32 spec uses "id" instead of "commandId"
+      expect(data.data.id).toBe(createData.data.commandId);
       expect(data.data.status).toBe("pending");
       expect(data.data.prompt).toBe("Test prompt");
       expect(data.data.interpretation).toBe("Test interpretation");
       expect(data.data.preview.matchCount).toBe(2);
       expect(data.data.preview.records).toHaveLength(2);
-      expect(data.data.expiresIn).toBeGreaterThan(0);
+      // #32 spec uses expiresAt timestamp instead of expiresIn
+      expect(data.data.expiresAt).toBeDefined();
+      expect(data.data.createdAt).toBeDefined();
     });
 
     it("should return 404 for non-existent command", async () => {
@@ -262,6 +265,128 @@ describe("AI Command Endpoint", () => {
 
       const { status } = await api.get(`/api/ai/command/${createData.data.commandId}`);
       expect(status).toBe(404);
+    });
+
+    it("should auto-expire stale pending commands", async () => {
+      mockOpenRouter(
+        "Test",
+        { description_contains: "coffee" },
+        { categoryId: CAT_FOOD_ID }
+      );
+
+      const { data: createData } = await api.post("/api/ai/command", {
+        prompt: "Test",
+      });
+
+      // Manually expire the command in DB
+      const db = getTestDb();
+      await db
+        .update(aiCommands)
+        .set({ expiresAt: new Date(Date.now() - 1000) })
+        .where(eq(aiCommands.id, createData.data.commandId));
+
+      // GET should return expired status and update DB
+      const { status, data } = await api.get(`/api/ai/command/${createData.data.commandId}`);
+      expect(status).toBe(200);
+      expect(data.data.status).toBe("expired");
+
+      // Verify DB was updated
+      const [command] = await db
+        .select()
+        .from(aiCommands)
+        .where(eq(aiCommands.id, createData.data.commandId));
+      expect(command.status).toBe("expired");
+    });
+  });
+
+  describe("GET /api/ai/commands", () => {
+    it("should require authentication", async () => {
+      api.clearToken();
+      const { status } = await api.get("/api/ai/commands");
+      expect(status).toBe(401);
+    });
+
+    it("should list user commands with pagination", async () => {
+      mockOpenRouter("Test 1", { description_contains: "coffee" }, { categoryId: CAT_FOOD_ID });
+
+      // Create 3 commands
+      await api.post("/api/ai/command", { prompt: "Test 1" });
+      await api.post("/api/ai/command", { prompt: "Test 2" });
+      await api.post("/api/ai/command", { prompt: "Test 3" });
+
+      const { status, data } = await api.get("/api/ai/commands");
+
+      expect(status).toBe(200);
+      expect(data.data.commands).toHaveLength(3);
+      expect(data.data.total).toBe(3);
+      expect(data.data.limit).toBe(20);
+      expect(data.data.offset).toBe(0);
+
+      // Should be ordered by createdAt DESC
+      expect(data.data.commands[0].prompt).toBe("Test 3");
+    });
+
+    it("should filter by status", async () => {
+      mockOpenRouter("Test", { description_contains: "coffee" }, { categoryId: CAT_FOOD_ID });
+
+      // Create and confirm one command
+      const { data: createData } = await api.post("/api/ai/command", { prompt: "To confirm" });
+      await api.post(`/api/ai/command/${createData.data.commandId}/confirm`, {});
+
+      // Create another pending command
+      await api.post("/api/ai/command", { prompt: "Pending" });
+
+      // Filter by confirmed
+      const { data: confirmedData } = await api.get("/api/ai/commands?status=confirmed");
+      expect(confirmedData.data.commands).toHaveLength(1);
+      expect(confirmedData.data.commands[0].status).toBe("confirmed");
+
+      // Filter by pending
+      const { data: pendingData } = await api.get("/api/ai/commands?status=pending");
+      expect(pendingData.data.commands).toHaveLength(1);
+      expect(pendingData.data.commands[0].status).toBe("pending");
+    });
+
+    it("should respect limit and offset", async () => {
+      mockOpenRouter("Test", { description_contains: "coffee" }, { categoryId: CAT_FOOD_ID });
+
+      // Create 5 commands
+      for (let i = 1; i <= 5; i++) {
+        await api.post("/api/ai/command", { prompt: `Test ${i}` });
+      }
+
+      // Get first 2
+      const { data: page1 } = await api.get("/api/ai/commands?limit=2&offset=0");
+      expect(page1.data.commands).toHaveLength(2);
+      expect(page1.data.commands[0].prompt).toBe("Test 5");
+      expect(page1.data.commands[1].prompt).toBe("Test 4");
+
+      // Get next 2
+      const { data: page2 } = await api.get("/api/ai/commands?limit=2&offset=2");
+      expect(page2.data.commands).toHaveLength(2);
+      expect(page2.data.commands[0].prompt).toBe("Test 3");
+    });
+
+    it("should not return other users commands", async () => {
+      mockOpenRouter("Test", { description_contains: "coffee" }, { categoryId: CAT_FOOD_ID });
+
+      // Create command as user 1
+      await api.post("/api/ai/command", { prompt: "User 1 command" });
+
+      // Switch to user 2
+      const user2 = await createTestUserDirect({ email: "user2@example.com" });
+      api.setToken(user2.token);
+
+      // Should see empty list
+      const { status, data } = await api.get("/api/ai/commands");
+      expect(status).toBe(200);
+      expect(data.data.commands).toHaveLength(0);
+      expect(data.data.total).toBe(0);
+    });
+
+    it("should cap limit at 100", async () => {
+      const { data } = await api.get("/api/ai/commands?limit=500");
+      expect(data.data.limit).toBe(100);
     });
   });
 
