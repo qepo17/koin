@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { eq, and, ilike, gte, lte, gt, inArray, sql, desc, type SQL } from "drizzle-orm";
 import { db, transactions, categories, aiCommands } from "../db";
-import { createOpenRouterClient, OpenRouterValidationError } from "../lib/openrouter";
+import { createOpenRouterClient, OpenRouterValidationError, OpenRouterConfigError } from "../lib/openrouter";
 import { enforceUserScope, logAuditEntry } from "../lib/ai-guardrails";
 import type { TransactionFilters, AIAction } from "../types/ai";
 import { z } from "zod";
@@ -185,7 +185,20 @@ app.post("/command", async (c) => {
     const currency = userSettings?.currency || "USD";
 
     // Create OpenRouter client and interpret prompt
-    const client = createOpenRouterClient();
+    let client;
+    try {
+      client = createOpenRouterClient();
+    } catch (err) {
+      if (err instanceof OpenRouterConfigError) {
+        return c.json({
+          error: "AI features are not available",
+          code: "AI_NOT_CONFIGURED",
+          message: "The AI assistant has not been configured. Please contact the administrator.",
+        }, 503);
+      }
+      throw err;
+    }
+
     const interpretation = await client.interpretPrompt(
       prompt,
       userCategories,

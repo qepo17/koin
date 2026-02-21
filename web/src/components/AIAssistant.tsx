@@ -62,8 +62,12 @@ export function AIAssistant({ isOpen, onClose }: AIAssistantProps) {
     },
     onError: (err: Error) => {
       if (err instanceof ApiError) {
-        const data = err.data as { error?: string };
-        setError(data.error || "Failed to interpret command");
+        const data = err.data as { error?: string; code?: string; message?: string };
+        if (data.code === "AI_NOT_CONFIGURED") {
+          setError(data.message || "AI features are not available. Please contact the administrator.");
+        } else {
+          setError(data.error || "Failed to interpret command");
+        }
       } else {
         setError(err.message || "Failed to interpret command");
       }
