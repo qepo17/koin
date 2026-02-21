@@ -61,3 +61,22 @@ export const apiTokens = pgTable("api_tokens", {
 }, (table) => ({
   tokenHashIdx: index("api_tokens_token_hash_idx").on(table.tokenHash),
 }));
+
+export const aiCommandStatusEnum = pgEnum("ai_command_status", ["pending", "confirmed", "cancelled", "expired"]);
+
+// AI commands - staged actions awaiting user confirmation
+export const aiCommands = pgTable("ai_commands", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  prompt: text("prompt").notNull(), // Original user prompt
+  interpretation: text("interpretation").notNull(), // AI's human-readable understanding
+  actions: text("actions").notNull(), // JSON: structured operations to perform
+  preview: text("preview").notNull(), // JSON: before/after preview data
+  status: aiCommandStatusEnum("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at").notNull(), // Auto-expire pending commands (e.g., 5 min)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  executedAt: timestamp("executed_at"), // When confirmed and executed
+  result: text("result"), // JSON: execution result or errors
+}, (table) => ({
+  userStatusIdx: index("ai_commands_user_status_idx").on(table.userId, table.status),
+}));

@@ -43,6 +43,13 @@
       "when": 1771511053545,
       "tag": "0005_nasty_loners",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1771676850325,
+      "tag": "0006_loud_paper_doll",
+      "breakpoints": true
     }
   ]
 }
