@@ -50,6 +50,13 @@
       "when": 1771676850325,
       "tag": "0006_loud_paper_doll",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1771696000000,
+      "tag": "0007_add_ai_filter_indexes",
+      "breakpoints": true
     }
   ]
 }
