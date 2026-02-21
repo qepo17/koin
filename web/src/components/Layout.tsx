@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "../hooks/useAuth";
+import { AIAssistant, AIAssistantButton } from "./AIAssistant";
 import type { ReactNode } from "react";
 
 const navItems = [
@@ -12,6 +14,7 @@ const navItems = [
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [showAI, setShowAI] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -64,6 +67,10 @@ export function Layout({ children }: { children: ReactNode }) {
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {children}
       </main>
+
+      {/* AI Assistant */}
+      <AIAssistantButton onClick={() => setShowAI(true)} />
+      <AIAssistant isOpen={showAI} onClose={() => setShowAI(false)} />
     </div>
   );
 }
