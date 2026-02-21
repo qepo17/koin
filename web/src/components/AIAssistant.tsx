@@ -23,9 +23,9 @@ export function AIAssistant({ isOpen, onClose }: AIAssistantProps) {
   const [error, setError] = useState<string | null>(null);
   const [successCount, setSuccessCount] = useState(0);
 
-  // Reset state when modal closes
+  // Reset state when modal opens
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
       setStep("input");
       setPrompt("");
       setPreview(null);
@@ -35,9 +35,9 @@ export function AIAssistant({ isOpen, onClose }: AIAssistantProps) {
     }
   }, [isOpen]);
 
-  // Countdown timer
+  // Countdown timer — only depends on step, reads countdown via functional update
   useEffect(() => {
-    if (step !== "preview" || countdown <= 0) return;
+    if (step !== "preview") return;
 
     const timer = setInterval(() => {
       setCountdown((c) => {
@@ -51,7 +51,7 @@ export function AIAssistant({ isOpen, onClose }: AIAssistantProps) {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [step, countdown]);
+  }, [step]);
 
   const interpretMutation = useMutation({
     mutationFn: (prompt: string) => ai.interpret(prompt),
