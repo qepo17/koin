@@ -7,6 +7,7 @@ import categories from "./routes/categories";
 import summary from "./routes/summary";
 import skill from "./routes/skill";
 import settings from "./routes/settings";
+import ai from "./routes/ai";
 import { authMiddleware } from "./middleware/auth";
 import { validateOpenRouterEnv } from "./lib/openrouter";
 
@@ -42,12 +43,14 @@ app.use("/api/categories/*", authMiddleware);
 app.use("/api/summary/*", authMiddleware);
 app.use("/api/settings/*", authMiddleware);
 app.use("/api/settings", authMiddleware);
+app.use("/api/ai/*", authMiddleware);
 
 app.route("/api/transactions", transactions);
 app.route("/api/categories", categories);
 app.route("/api/summary", summary);
 app.route("/api/settings", settings);
 app.route("/api/skill", skill);
+app.route("/api/ai", ai);
 
 // 404 handler
 app.notFound((c) => {

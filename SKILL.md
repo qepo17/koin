@@ -135,6 +135,80 @@ Balance formula: `income - expenses + adjustments`
 
 Note: `adjustments` are balance corrections made via the web UI.
 
+### AI Commands
+
+Use natural language to bulk update transactions. Commands are staged for review before execution.
+
+#### Create Command (Interpret & Preview)
+```bash
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/ai/command" \
+  -d '{"prompt": "Put all coffee expenses in Food category"}'
+```
+
+Returns:
+```json
+{
+  "data": {
+    "commandId": "uuid",
+    "interpretation": "I'll categorize transactions containing 'coffee' as Food.",
+    "preview": {
+      "matchCount": 5,
+      "records": [
+        {
+          "id": "tx-uuid",
+          "before": {"description": "Coffee", "category": null, "amount": "5.50"},
+          "after": {"description": "Coffee", "category": "Food", "amount": "5.50"}
+        }
+      ]
+    },
+    "expiresIn": 300
+  }
+}
+```
+
+#### Get Command Status
+```bash
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/ai/command/:id"
+```
+
+#### Confirm Command (Execute)
+```bash
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/ai/command/:id/confirm" \
+  -d '{}'
+```
+
+Returns:
+```json
+{
+  "data": {
+    "commandId": "uuid",
+    "status": "confirmed",
+    "updatedCount": 5,
+    "message": "Successfully updated 5 transaction(s)"
+  }
+}
+```
+
+#### Cancel Command
+```bash
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/ai/command/:id/cancel" \
+  -d '{}'
+```
+
+**Supported filters:** description, amount, amount range, date range, category name, transaction type
+
+**Supported changes:** category, amount, description, type
+
+**Rate limit:** 10 requests per minute per user
+
+**Note:** Commands expire after 5 minutes (300 seconds) if not confirmed.
+
 ### Settings
 
 #### Get User Settings

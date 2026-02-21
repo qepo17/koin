@@ -32,6 +32,7 @@ export async function teardownTestDb() {
 export async function cleanupTables() {
   const db = getDb();
   // Clean up in correct order (respecting foreign keys)
+  await db.delete(schema.aiCommands);
   await db.delete(schema.transactions);
   await db.delete(schema.budgets);
   await db.delete(schema.categories);
