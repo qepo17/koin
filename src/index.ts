@@ -8,6 +8,10 @@ import summary from "./routes/summary";
 import skill from "./routes/skill";
 import settings from "./routes/settings";
 import { authMiddleware } from "./middleware/auth";
+import { validateOpenRouterEnv } from "./lib/openrouter";
+
+// Validate environment on startup
+validateOpenRouterEnv();
 
 export const app = new Hono();
 

@@ -161,10 +161,10 @@ export class OpenRouterClient {
     let retryDelay = INITIAL_RETRY_DELAY_MS;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
 
+      try {
         const response = await fetch(OPENROUTER_API_URL, {
           method: "POST",
           headers: {
@@ -183,6 +183,15 @@ export class OpenRouterClient {
         });
 
         clearTimeout(timeoutId);
+
+        // Validate Content-Type before parsing
+        const contentType = response.headers.get("content-type");
+        if (!contentType?.includes("application/json")) {
+          throw new OpenRouterAPIError(
+            `Unexpected Content-Type: ${contentType}`,
+            response.status
+          );
+        }
 
         if (!response.ok) {
           const errorBody = await response.json().catch(() => ({})) as OpenRouterError;
@@ -209,6 +218,8 @@ export class OpenRouterClient {
 
         return await response.json() as OpenRouterResponse;
       } catch (error) {
+        clearTimeout(timeoutId); // Always clear timeout to prevent leaks
+
         if (error instanceof OpenRouterAPIError) {
           throw error;
         }

@@ -77,7 +77,10 @@ describe("OpenRouter Client", () => {
       };
 
       globalThis.fetch = mock(() =>
-        Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }))
+        Promise.resolve(new Response(JSON.stringify(mockResponse), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }))
       );
 
       const client = new OpenRouterClient({
@@ -120,10 +123,13 @@ describe("OpenRouter Client", () => {
         if (callCount === 1) {
           return Promise.resolve(new Response(
             JSON.stringify({ error: { message: "Rate limited", type: "rate_limit" } }),
-            { status: 429, headers: { "retry-after": "0" } }
+            { status: 429, headers: { "retry-after": "0", "content-type": "application/json" } }
           ));
         }
-        return Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }));
+        return Promise.resolve(new Response(JSON.stringify(mockResponse), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }));
       });
 
       const client = new OpenRouterClient({
@@ -153,7 +159,10 @@ describe("OpenRouter Client", () => {
       };
 
       globalThis.fetch = mock(() =>
-        Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }))
+        Promise.resolve(new Response(JSON.stringify(mockResponse), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }))
       );
 
       const client = new OpenRouterClient({
@@ -182,7 +191,10 @@ describe("OpenRouter Client", () => {
       };
 
       globalThis.fetch = mock(() =>
-        Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }))
+        Promise.resolve(new Response(JSON.stringify(mockResponse), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }))
       );
 
       const client = new OpenRouterClient({
@@ -197,7 +209,7 @@ describe("OpenRouter Client", () => {
       globalThis.fetch = mock(() =>
         Promise.resolve(new Response(
           JSON.stringify({ error: { message: "Invalid API key", type: "invalid_api_key" } }),
-          { status: 401 }
+          { status: 401, headers: { "content-type": "application/json" } }
         ))
       );
 
@@ -225,7 +237,10 @@ describe("OpenRouter Client", () => {
       };
 
       globalThis.fetch = mock(() =>
-        Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }))
+        Promise.resolve(new Response(JSON.stringify(mockResponse), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }))
       );
 
       const client = new OpenRouterClient({
@@ -258,7 +273,10 @@ describe("OpenRouter Client", () => {
       };
 
       globalThis.fetch = mock(() =>
-        Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }))
+        Promise.resolve(new Response(JSON.stringify(mockResponse), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }))
       );
 
       const client = new OpenRouterClient({
@@ -268,6 +286,29 @@ describe("OpenRouter Client", () => {
 
       const result = await client.interpretPrompt("test", [], "USD");
       expect(result.interpretation).toBe("With markdown");
+    });
+
+    it("should throw on invalid Content-Type", async () => {
+      globalThis.fetch = mock(() =>
+        Promise.resolve(new Response("<html>Error</html>", {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        }))
+      );
+
+      const client = new OpenRouterClient({
+        apiKey: "test-key",
+        model: "anthropic/claude-sonnet-4",
+        maxRetries: 0,
+      });
+
+      try {
+        await client.chat([{ role: "user", content: "test" }]);
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(OpenRouterAPIError);
+        expect((error as OpenRouterAPIError).message).toContain("Content-Type");
+      }
     });
   });
 
