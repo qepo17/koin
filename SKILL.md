@@ -48,7 +48,12 @@ curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
 ```
 
 Required: `type`, `amount`
+- `type` — `income` or `expense`
+- `amount` — positive decimal value
+
 Optional: `description`, `categoryId`, `date` (defaults to now)
+
+**Note:** For balance corrections or adjustments, use the Koin web UI.
 
 #### Get Transaction
 ```bash
@@ -117,13 +122,18 @@ Returns:
   "data": {
     "income": 5000.00,
     "expenses": 2500.00,
-    "balance": 2500.00,
+    "adjustments": 100.00,
+    "balance": 2600.00,
     "byCategory": [
       {"categoryId": "...", "categoryName": "Food", "total": "500.00", "count": 15}
     ]
   }
 }
 ```
+
+Balance formula: `income - expenses + adjustments`
+
+Note: `adjustments` are balance corrections made via the web UI.
 
 ### Settings
 

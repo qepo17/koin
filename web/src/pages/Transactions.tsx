@@ -87,7 +87,9 @@ export function TransactionsPage() {
                       className={`px-2 py-1 text-xs rounded-full ${
                         tx.type === "income"
                           ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
+                          : tx.type === "expense"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-purple-100 text-purple-700"
                       }`}
                     >
                       {tx.type}
@@ -105,7 +107,11 @@ export function TransactionsPage() {
                 <div className="flex items-center gap-4">
                   <span
                     className={`text-lg font-semibold ${
-                      tx.type === "income" ? "text-green-600" : "text-red-600"
+                      tx.type === "income"
+                        ? "text-green-600"
+                        : tx.type === "expense"
+                        ? "text-red-600"
+                        : "text-purple-600"
                     }`}
                   >
                     {formatCurrencyWithSign(tx.amount, currency, tx.type)}
@@ -149,7 +155,7 @@ function TransactionForm({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [type, setType] = useState<"income" | "expense">(
+  const [type, setType] = useState<"income" | "expense" | "adjustment">(
     editingTransaction?.type ?? "expense"
   );
   const [amount, setAmount] = useState(editingTransaction?.amount ?? "");
@@ -215,7 +221,7 @@ function TransactionForm({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Type
             </label>
-            <div className="flex gap-4">
+            <div className="flex gap-4 flex-wrap">
               <label className="flex items-center">
                 <input
                   type="radio"
@@ -238,7 +244,23 @@ function TransactionForm({
                 />
                 Income
               </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="type"
+                  value="adjustment"
+                  checked={type === "adjustment"}
+                  onChange={() => setType("adjustment")}
+                  className="mr-2"
+                />
+                Adjustment
+              </label>
             </div>
+            {type === "adjustment" && (
+              <p className="mt-1 text-xs text-gray-500">
+                Use positive values to add to balance, negative to subtract.
+              </p>
+            )}
           </div>
 
           <div>
@@ -248,11 +270,12 @@ function TransactionForm({
             <input
               type="number"
               step="0.01"
+              min={type === "adjustment" ? undefined : "0"}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              placeholder="0.00"
+              placeholder={type === "adjustment" ? "-100.00 or 100.00" : "0.00"}
             />
           </div>
 

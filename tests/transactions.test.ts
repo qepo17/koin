@@ -56,6 +56,36 @@ describe("Transactions API", () => {
       });
     });
 
+    it("should create a positive adjustment transaction", async () => {
+      const { status, data } = await api.post("/api/transactions", {
+        type: "adjustment",
+        amount: "500.00",
+        description: "Starting balance",
+      });
+
+      expect(status).toBe(201);
+      expect(data.data).toMatchObject({
+        type: "adjustment",
+        amount: "500.00",
+        description: "Starting balance",
+      });
+    });
+
+    it("should create a negative adjustment transaction", async () => {
+      const { status, data } = await api.post("/api/transactions", {
+        type: "adjustment",
+        amount: "-100.00",
+        description: "Balance correction",
+      });
+
+      expect(status).toBe(201);
+      expect(data.data).toMatchObject({
+        type: "adjustment",
+        amount: "-100.00",
+        description: "Balance correction",
+      });
+    });
+
     it("should create transaction with category", async () => {
       // First create a category
       const catResult = await api.post("/api/categories", { name: "Food & Dining" });
@@ -126,6 +156,18 @@ describe("Transactions API", () => {
       expect(status).toBe(200);
       expect(data.data).toHaveLength(2);
       expect(data.data.every((t: any) => t.type === "expense")).toBe(true);
+    });
+
+    it("should filter by adjustment type", async () => {
+      await api.post("/api/transactions", { type: "expense", amount: "10.00" });
+      await api.post("/api/transactions", { type: "adjustment", amount: "500.00" });
+      await api.post("/api/transactions", { type: "adjustment", amount: "-50.00" });
+
+      const { status, data } = await api.get("/api/transactions?type=adjustment");
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(2);
+      expect(data.data.every((t: any) => t.type === "adjustment")).toBe(true);
     });
 
     it("should return empty array when no transactions", async () => {

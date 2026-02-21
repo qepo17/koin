@@ -184,7 +184,7 @@ export interface Settings {
 export interface Transaction {
   id: string;
   userId: string;
-  type: "income" | "expense";
+  type: "income" | "expense" | "adjustment";
   amount: string;
   description: string | null;
   categoryId: string | null;
@@ -194,7 +194,7 @@ export interface Transaction {
 }
 
 export interface CreateTransaction {
-  type: "income" | "expense";
+  type: "income" | "expense" | "adjustment";
   amount: string;
   description?: string;
   categoryId?: string;
@@ -220,6 +220,7 @@ export interface CreateCategory {
 export interface Summary {
   income: number;
   expenses: number;
+  adjustments: number;
   balance: number;
   byCategory: {
     categoryId: string | null;

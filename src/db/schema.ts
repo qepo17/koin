@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, decimal, timestamp, pgEnum, index } from "drizzle-orm/pg-core";
 
-export const transactionTypeEnum = pgEnum("transaction_type", ["income", "expense"]);
+export const transactionTypeEnum = pgEnum("transaction_type", ["income", "expense", "adjustment"]);
 
 // Users table
 export const users = pgTable("users", {

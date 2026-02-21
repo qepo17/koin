@@ -26,6 +26,12 @@ app.get("/", async (c) => {
     .select({ total: sql<string>`COALESCE(SUM(${transactions.amount}), 0)` })
     .from(transactions)
     .where(and(baseWhere, eq(transactions.type, "expense")));
+
+  // Total adjustments (can be positive or negative)
+  const adjustmentResult = await db
+    .select({ total: sql<string>`COALESCE(SUM(${transactions.amount}), 0)` })
+    .from(transactions)
+    .where(and(baseWhere, eq(transactions.type, "adjustment")));
     
   // Expenses by category
   const byCategory = await db
@@ -42,12 +48,14 @@ app.get("/", async (c) => {
     
   const income = parseFloat(incomeResult[0]?.total || "0");
   const expenses = parseFloat(expenseResult[0]?.total || "0");
+  const adjustments = parseFloat(adjustmentResult[0]?.total || "0");
   
   return c.json({
     data: {
       income,
       expenses,
-      balance: income - expenses,
+      adjustments,
+      balance: income - expenses + adjustments,
       byCategory,
     },
   });
