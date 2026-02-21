@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { renderWithProviders, screen, waitFor } from "../test/utils";
+import { renderWithProviders, screen, waitFor, userEvent } from "../test/utils";
 import { setAuthState, resetAuthState } from "../test/mocks/handlers";
 import { DashboardPage } from "./Dashboard";
 
@@ -91,5 +91,106 @@ describe("DashboardPage", () => {
       el.classList.contains("text-purple-600")
     );
     expect(adjustmentAmount).toBeTruthy();
+  });
+
+  it("shows 'Click to adjust' hint on Balance card", async () => {
+    renderWithProviders(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/click to adjust/i)).toBeInTheDocument();
+    });
+  });
+
+  it("opens balance adjustment modal when clicking Balance card", async () => {
+    renderWithProviders(<DashboardPage />);
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByText(/click to adjust/i)).toBeInTheDocument();
+    });
+
+    // Click on the Balance card
+    const balanceCard = screen.getByRole("button");
+    await user.click(balanceCard);
+
+    // Modal should appear
+    await waitFor(() => {
+      expect(screen.getByText(/adjust balance/i)).toBeInTheDocument();
+      expect(screen.getByText(/current balance/i)).toBeInTheDocument();
+      expect(screen.getByText(/new balance/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows adjustment preview in modal", async () => {
+    renderWithProviders(<DashboardPage />);
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByText(/click to adjust/i)).toBeInTheDocument();
+    });
+
+    // Click on the Balance card
+    await user.click(screen.getByRole("button"));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("0.00")).toBeInTheDocument();
+    });
+
+    // Enter new balance (current is $3,474.50, set to $4000)
+    const input = screen.getByPlaceholderText("0.00");
+    await user.clear(input);
+    await user.type(input, "4000");
+
+    // Should show adjustment preview
+    await waitFor(() => {
+      expect(screen.getByText(/this will create an adjustment/i)).toBeInTheDocument();
+    });
+  });
+
+  it("can close balance adjustment modal with cancel", async () => {
+    renderWithProviders(<DashboardPage />);
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByText(/click to adjust/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/adjust balance/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/adjust balance/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it("can submit balance adjustment", async () => {
+    renderWithProviders(<DashboardPage />);
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByText(/click to adjust/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button"));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("0.00")).toBeInTheDocument();
+    });
+
+    const input = screen.getByPlaceholderText("0.00");
+    await user.clear(input);
+    await user.type(input, "5000");
+
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    // Modal should close after successful submission
+    await waitFor(() => {
+      expect(screen.queryByText(/adjust balance/i)).not.toBeInTheDocument();
+    });
   });
 });

@@ -1,12 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { summary, transactions } from "../lib/api";
 import { Link } from "@tanstack/react-router";
 import { useAuth } from "../hooks/useAuth";
-import { formatCurrency, formatCurrencyWithSign } from "../lib/currency";
+import { formatCurrency, formatCurrencyWithSign, getCurrencySymbol } from "../lib/currency";
 
 export function DashboardPage() {
   const { user } = useAuth();
   const currency = user?.currency || "USD";
+  const queryClient = useQueryClient();
+  const [showBalanceModal, setShowBalanceModal] = useState(false);
 
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: ["summary"],
@@ -22,6 +25,11 @@ export function DashboardPage() {
 
   const stats = summaryData?.data;
   const recent = recentTransactions?.data?.slice(0, 5) ?? [];
+
+  const handleBalanceAdjusted = () => {
+    queryClient.invalidateQueries({ queryKey: ["summary"] });
+    queryClient.invalidateQueries({ queryKey: ["transactions"] });
+  };
 
   return (
     <div>
@@ -59,8 +67,20 @@ export function DashboardPage() {
           currency={currency}
           isLoading={summaryLoading}
           color="blue"
+          onClick={() => setShowBalanceModal(true)}
+          editable
         />
       </div>
+
+      {/* Balance Adjustment Modal */}
+      {showBalanceModal && (
+        <BalanceAdjustmentModal
+          currentBalance={stats?.balance ?? 0}
+          currency={currency}
+          onClose={() => setShowBalanceModal(false)}
+          onSuccess={handleBalanceAdjusted}
+        />
+      )}
 
       {/* Recent Transactions */}
       <div className="bg-white rounded-lg shadow">
@@ -153,6 +173,8 @@ function StatCard({
   isLoading,
   color,
   showSign = false,
+  onClick,
+  editable = false,
 }: {
   title: string;
   value: number;
@@ -160,6 +182,8 @@ function StatCard({
   isLoading: boolean;
   color: "green" | "red" | "blue" | "purple";
   showSign?: boolean;
+  onClick?: () => void;
+  editable?: boolean;
 }) {
   const colorClasses = {
     green: "text-green-600",
@@ -173,8 +197,21 @@ function StatCard({
     : formatCurrency(value, currency);
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h3 className="text-sm font-medium text-gray-500">{title}</h3>
+    <div
+      className={`bg-white rounded-lg shadow p-6 ${
+        editable ? "cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all" : ""
+      }`}
+      onClick={onClick}
+      role={editable ? "button" : undefined}
+      tabIndex={editable ? 0 : undefined}
+      onKeyDown={editable ? (e) => e.key === "Enter" && onClick?.() : undefined}
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-gray-500">{title}</h3>
+        {editable && (
+          <span className="text-xs text-gray-400">Click to adjust</span>
+        )}
+      </div>
       {isLoading ? (
         <div className="mt-2 h-8 bg-gray-200 rounded animate-pulse" />
       ) : (
@@ -182,6 +219,127 @@ function StatCard({
           {formattedValue}
         </p>
       )}
+    </div>
+  );
+}
+
+function BalanceAdjustmentModal({
+  currentBalance,
+  currency,
+  onClose,
+  onSuccess,
+}: {
+  currentBalance: number;
+  currency: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [targetBalance, setTargetBalance] = useState(currentBalance.toString());
+  const symbol = getCurrencySymbol(currency);
+
+  const createAdjustment = useMutation({
+    mutationFn: (amount: string) =>
+      transactions.create({
+        type: "adjustment",
+        amount,
+        description: "Balance adjustment",
+        date: new Date().toISOString(),
+      }),
+    onSuccess: () => {
+      onSuccess();
+      onClose();
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const target = parseFloat(targetBalance);
+    if (isNaN(target)) return;
+
+    const adjustmentAmount = target - currentBalance;
+    if (adjustmentAmount === 0) {
+      onClose();
+      return;
+    }
+
+    createAdjustment.mutate(adjustmentAmount.toFixed(2));
+  };
+
+  const target = parseFloat(targetBalance) || 0;
+  const adjustmentAmount = target - currentBalance;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <h2 className="text-xl font-semibold mb-4">Adjust Balance</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Enter your actual balance. An adjustment transaction will be created automatically.
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Current Balance
+            </label>
+            <p className="text-lg font-semibold text-gray-900">
+              {formatCurrency(currentBalance, currency)}
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              New Balance
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                {symbol}
+              </span>
+              <input
+                type="number"
+                step="0.01"
+                value={targetBalance}
+                onChange={(e) => setTargetBalance(e.target.value)}
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="0.00"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          {adjustmentAmount !== 0 && !isNaN(adjustmentAmount) && (
+            <div className="p-3 bg-gray-50 rounded-md">
+              <p className="text-sm text-gray-600">
+                This will create an adjustment of{" "}
+                <span
+                  className={`font-semibold ${
+                    adjustmentAmount > 0 ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {adjustmentAmount > 0 ? "+" : ""}
+                  {formatCurrency(adjustmentAmount, currency)}
+                </span>
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={createAdjustment.isPending || adjustmentAmount === 0}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+            >
+              {createAdjustment.isPending ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
