@@ -158,6 +158,40 @@ export const skill = {
     }),
 };
 
+// AI API
+export const ai = {
+  interpret: (prompt: string) =>
+    request<{ data: AICommandPreview }>("/ai/command", {
+      method: "POST",
+      body: JSON.stringify({ prompt }),
+    }),
+
+  getCommand: (id: string) =>
+    request<{ data: AICommandStatus }>(`/ai/command/${id}`),
+
+  confirm: (id: string) =>
+    request<{ data: AICommandResult }>(`/ai/command/${id}/confirm`, {
+      method: "POST",
+    }),
+
+  cancel: (id: string) =>
+    request<{ data: { commandId: string; status: "cancelled" } }>(
+      `/ai/command/${id}/cancel`,
+      { method: "POST" }
+    ),
+
+  listCommands: (params?: { status?: string; limit?: number; offset?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.set("status", params.status);
+    if (params?.limit) searchParams.set("limit", params.limit.toString());
+    if (params?.offset) searchParams.set("offset", params.offset.toString());
+    const query = searchParams.toString();
+    return request<{ data: { commands: AICommandStatus[]; total: number } }>(
+      `/ai/commands${query ? `?${query}` : ""}`
+    );
+  },
+};
+
 // Combined API object
 export const api = {
   auth,
@@ -166,6 +200,7 @@ export const api = {
   summary,
   settings,
   skill,
+  ai,
 };
 
 // Types
@@ -242,4 +277,59 @@ export interface ApiToken {
   expiresAt: string | null;
   lastUsedAt: string | null;
   createdAt: string;
+}
+
+// AI Types
+export interface AIPreviewRecord {
+  id: string;
+  description: string | null;
+  amount: string;
+  date: string;
+  categoryId: string | null;
+  categoryName: string | null;
+  type: "income" | "expense" | "adjustment";
+}
+
+export interface AICommandPreview {
+  commandId: string;
+  interpretation: string;
+  preview: {
+    matchCount: number;
+    records: AIPreviewRecord[];
+  };
+  changes: {
+    categoryId?: string;
+    categoryName?: string;
+    amount?: string;
+    description?: string;
+    type?: "income" | "expense" | "adjustment";
+  };
+  expiresIn: number;
+}
+
+export interface AICommandStatus {
+  commandId: string;
+  status: "pending" | "confirmed" | "cancelled" | "expired";
+  prompt: string;
+  interpretation: string;
+  preview: {
+    matchCount: number;
+    records: AIPreviewRecord[];
+  };
+  expiresIn: number;
+  createdAt: string;
+  executedAt: string | null;
+}
+
+export interface AICommandResult {
+  commandId: string;
+  status: "confirmed";
+  result: {
+    updatedCount: number;
+    transactions: Array<{
+      id: string;
+      description: string | null;
+      category: string | null;
+    }>;
+  };
 }
