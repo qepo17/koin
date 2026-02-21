@@ -47,16 +47,31 @@ export class OpenRouterValidationError extends Error {
   }
 }
 
+// Sanitize user input to prevent prompt injection
+function sanitizeForPrompt(input: string, maxLength: number = 100): string {
+  return input
+    .replace(/[\r\n]+/g, " ")           // Replace newlines with spaces
+    .replace(/[#*`\[\]{}]/g, "")        // Remove markdown-like characters
+    .replace(/\s+/g, " ")               // Collapse multiple spaces
+    .trim()
+    .slice(0, maxLength);               // Limit length
+}
+
 // Build system prompt with user context
 export function buildSystemPrompt(categories: CategoryContext[], currency: string): string {
+  const sanitizedCurrency = sanitizeForPrompt(currency, 10);
   const categoryList = categories.length > 0
-    ? categories.map(c => `- "${c.name}" (id: ${c.id})${c.description ? ` - ${c.description}` : ""}`).join("\n")
+    ? categories.map(c => {
+        const name = sanitizeForPrompt(c.name, 50);
+        const desc = c.description ? ` - ${sanitizeForPrompt(c.description, 100)}` : "";
+        return `- "${name}" (id: ${c.id})${desc}`;
+      }).join("\n")
     : "No categories defined yet.";
 
   return `You are a personal finance assistant for a user's expense tracking app.
 
 ## User Context
-- Currency: ${currency}
+- Currency: ${sanitizedCurrency}
 - Available Categories:
 ${categoryList}
 
