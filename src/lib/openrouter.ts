@@ -4,8 +4,14 @@ import {
   type OpenRouterError,
   type CategoryContext,
   type AIInterpretation,
-  aiInterpretationSchema,
 } from "../types/ai";
+import {
+  sanitizePrompt,
+  detectInjection,
+  validateAIOutput,
+  buildSecureSystemPrompt,
+  logAuditEntry,
+} from "./ai-guardrails";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MAX_RETRIES = 3;
@@ -47,92 +53,8 @@ export class OpenRouterValidationError extends Error {
   }
 }
 
-// Sanitize user input to prevent prompt injection
-function sanitizeForPrompt(input: string, maxLength: number = 100): string {
-  return input
-    .replace(/[\r\n]+/g, " ")           // Replace newlines with spaces
-    .replace(/[#*`\[\]{}]/g, "")        // Remove markdown-like characters
-    .replace(/\s+/g, " ")               // Collapse multiple spaces
-    .trim()
-    .slice(0, maxLength);               // Limit length
-}
-
-// Build system prompt with user context
-export function buildSystemPrompt(categories: CategoryContext[], currency: string): string {
-  const sanitizedCurrency = sanitizeForPrompt(currency, 10);
-  const categoryList = categories.length > 0
-    ? categories.map(c => {
-        const name = sanitizeForPrompt(c.name, 50);
-        const desc = c.description ? ` - ${sanitizeForPrompt(c.description, 100)}` : "";
-        return `- "${name}" (id: ${c.id})${desc}`;
-      }).join("\n")
-    : "No categories defined yet.";
-
-  return `You are a personal finance assistant for a user's expense tracking app.
-
-## User Context
-- Currency: ${sanitizedCurrency}
-- Available Categories:
-${categoryList}
-
-## Your Task
-Interpret the user's natural language request about their transactions and convert it into a structured action.
-
-## Allowed Operations
-You can ONLY help with UPDATE operations on transactions. You CANNOT:
-- Create new transactions (user must do this manually)
-- Delete transactions
-- Access or modify budgets, settings, or other data
-
-## Response Format
-You MUST respond with valid JSON matching this schema:
-{
-  "interpretation": "A brief, human-readable explanation of what you understood",
-  "action": {
-    "type": "update_transactions",
-    "filters": {
-      "description_contains": "optional string to match in description",
-      "amount_equals": "optional exact amount number",
-      "amount_range": { "min": number, "max": number },
-      "date_range": { "start": "ISO date", "end": "ISO date" },
-      "category_name": "optional category name to match",
-      "transaction_type": "income or expense"
-    },
-    "changes": {
-      "categoryId": "uuid of category to assign",
-      "amount": "new amount as string",
-      "description": "new description",
-      "type": "income or expense"
-    }
-  }
-}
-
-Only include filter fields that are relevant to the user's request. Only include change fields the user wants to modify.
-
-## Examples
-
-User: "Categorize all my coffee purchases as Food"
-{
-  "interpretation": "I'll find all transactions with 'coffee' in the description and assign them to the 'Food' category.",
-  "action": {
-    "type": "update_transactions",
-    "filters": { "description_contains": "coffee" },
-    "changes": { "categoryId": "<Food category id>" }
-  }
-}
-
-User: "Change my Netflix subscription from $15 to $18"
-{
-  "interpretation": "I'll update the Netflix transaction amount from $15 to $18.",
-  "action": {
-    "type": "update_transactions",
-    "filters": { "description_contains": "Netflix", "amount_equals": 15 },
-    "changes": { "amount": "18" }
-  }
-}
-
-IMPORTANT: Always respond with ONLY the JSON object, no additional text or markdown.`;
-}
+// Re-export buildSecureSystemPrompt as buildSystemPrompt for backward compatibility
+export { buildSecureSystemPrompt as buildSystemPrompt } from "./ai-guardrails";
 
 // Sleep helper for retries
 function sleep(ms: number): Promise<void> {
@@ -261,16 +183,51 @@ export class OpenRouterClient {
   }
 
   // Interpret a user prompt and return structured action
+  // Now integrated with security guardrails
   async interpretPrompt(
     prompt: string,
     categories: CategoryContext[],
-    currency: string
+    currency: string,
+    userId?: string  // Optional for audit logging
   ): Promise<AIInterpretation> {
-    const systemPrompt = buildSystemPrompt(categories, currency);
+    // Step 1: Sanitize and check for injection
+    const { sanitized, blockedPatterns } = sanitizePrompt(prompt);
+    const injection = detectInjection(sanitized);
+
+    // Log prompt received
+    if (userId) {
+      logAuditEntry({
+        userId,
+        action: "prompt_received",
+        prompt: sanitized,
+        blockedPatterns: blockedPatterns.length > 0 ? blockedPatterns : undefined,
+        success: true,
+      });
+    }
+
+    // Block obvious injection attempts
+    if (injection.blocked) {
+      if (userId) {
+        logAuditEntry({
+          userId,
+          action: "injection_detected",
+          prompt: sanitized,
+          blockedPatterns: injection.reasons,
+          success: false,
+        });
+      }
+      throw new OpenRouterValidationError(
+        "Request blocked: potential prompt injection detected",
+        injection.reasons
+      );
+    }
+
+    // Step 2: Build secure system prompt and call LLM
+    const systemPrompt = buildSecureSystemPrompt(categories, currency);
 
     const response = await this.chat([
       { role: "system", content: systemPrompt },
-      { role: "user", content: prompt },
+      { role: "user", content: sanitized },
     ]);
 
     const content = response.choices[0]?.message?.content;
@@ -278,25 +235,49 @@ export class OpenRouterClient {
       throw new OpenRouterValidationError("Empty response from model");
     }
 
-    // Parse and validate JSON response
+    // Step 3: Parse JSON response
     let parsed: unknown;
     try {
       // Handle potential markdown code blocks
       const jsonContent = content.replace(/```json\n?|\n?```/g, "").trim();
       parsed = JSON.parse(jsonContent);
     } catch {
+      if (userId) {
+        logAuditEntry({
+          userId,
+          action: "validation_failed",
+          prompt: sanitized,
+          llmResponse: content,
+          validationErrors: ["Invalid JSON"],
+          success: false,
+        });
+      }
       throw new OpenRouterValidationError("Invalid JSON in model response", content);
     }
 
-    const result = aiInterpretationSchema.safeParse(parsed);
-    if (!result.success) {
+    // Step 4: Validate output with guardrails (strict schema + sanitization)
+    const validation = validateAIOutput(parsed);
+    if (!validation.valid) {
+      if (userId) {
+        logAuditEntry({
+          userId,
+          action: "validation_failed",
+          prompt: sanitized,
+          llmResponse: content,
+          validationErrors: validation.errors,
+          success: false,
+        });
+      }
       throw new OpenRouterValidationError(
-        "Response does not match expected schema",
-        result.error.issues
+        "Response failed security validation",
+        validation.errors
       );
     }
 
-    return result.data;
+    return {
+      interpretation: validation.interpretation!,
+      action: validation.action!,
+    };
   }
 }
 
