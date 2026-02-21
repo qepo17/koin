@@ -15,10 +15,19 @@ export function TransactionsPage() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // Filter state
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
 
   const { data: txList, isLoading } = useQuery({
-    queryKey: ["transactions"],
-    queryFn: () => transactions.list(),
+    queryKey: ["transactions", { startDate, endDate, categoryId: categoryFilter }],
+    queryFn: () => transactions.list({
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      categoryId: categoryFilter || undefined,
+    }),
   });
 
   const { data: catList } = useQuery({
@@ -37,6 +46,14 @@ export function TransactionsPage() {
   const txs = txList?.data ?? [];
   const cats = catList?.data ?? [];
 
+  const clearFilters = () => {
+    setStartDate("");
+    setEndDate("");
+    setCategoryFilter("");
+  };
+
+  const hasFilters = startDate || endDate || categoryFilter;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -50,6 +67,62 @@ export function TransactionsPage() {
         >
           Add Transaction
         </button>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <div className="flex flex-wrap gap-4 items-end">
+          <div>
+            <label htmlFor="filter-start-date" className="block text-sm font-medium text-gray-700 mb-1">
+              Start Date
+            </label>
+            <input
+              id="filter-start-date"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="filter-end-date" className="block text-sm font-medium text-gray-700 mb-1">
+              End Date
+            </label>
+            <input
+              id="filter-end-date"
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="filter-category" className="block text-sm font-medium text-gray-700 mb-1">
+              Category
+            </label>
+            <select
+              id="filter-category"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">All categories</option>
+              {cats.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {hasFilters && (
+            <button
+              onClick={clearFilters}
+              className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Form Modal */}
@@ -72,73 +145,83 @@ export function TransactionsPage() {
           <div className="p-6 text-center text-gray-500">Loading...</div>
         ) : txs.length === 0 ? (
           <div className="p-6 text-center text-gray-500">
-            No transactions yet. Click "Add Transaction" to create one.
+            {hasFilters
+              ? "No transactions match your filters."
+              : "No transactions yet. Click \"Add Transaction\" to create one."}
           </div>
         ) : (
-          <ul className="divide-y divide-gray-200">
-            {txs.map((tx) => (
-              <li
-                key={tx.id}
-                className="px-6 py-4 flex items-center justify-between hover:bg-gray-50"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`px-2 py-1 text-xs rounded-full ${
-                        tx.type === "income"
-                          ? "bg-green-100 text-green-700"
-                          : tx.type === "expense"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-purple-100 text-purple-700"
-                      }`}
-                    >
-                      {tx.type}
-                    </span>
-                    <p className="font-medium text-gray-900">
-                      {tx.description || "No description"}
+          <>
+            <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
+              <p className="text-sm text-gray-600">
+                {txs.length} transaction{txs.length !== 1 ? "s" : ""}
+                {hasFilters && " (filtered)"}
+              </p>
+            </div>
+            <ul className="divide-y divide-gray-200">
+              {txs.map((tx) => (
+                <li
+                  key={tx.id}
+                  className="px-6 py-4 flex items-center justify-between hover:bg-gray-50"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`px-2 py-1 text-xs rounded-full ${
+                          tx.type === "income"
+                            ? "bg-green-100 text-green-700"
+                            : tx.type === "expense"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-purple-100 text-purple-700"
+                        }`}
+                      >
+                        {tx.type}
+                      </span>
+                      <p className="font-medium text-gray-900">
+                        {tx.description || "No description"}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {new Date(tx.date).toLocaleDateString()} •{" "}
+                      {cats.find((c) => c.id === tx.categoryId)?.name ||
+                        "No category"}
                     </p>
                   </div>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {new Date(tx.date).toLocaleDateString()} •{" "}
-                    {cats.find((c) => c.id === tx.categoryId)?.name ||
-                      "No category"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span
-                    className={`text-lg font-semibold ${
-                      tx.type === "income"
-                        ? "text-green-600"
-                        : tx.type === "expense"
-                        ? "text-red-600"
-                        : "text-purple-600"
-                    }`}
-                  >
-                    {formatCurrencyWithSign(tx.amount, currency, tx.type)}
-                  </span>
-                  <button
-                    onClick={() => {
-                      setEditingId(tx.id);
-                      setShowForm(true);
-                    }}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (confirm("Delete this transaction?")) {
-                        deleteMutation.mutate(tx.id);
-                      }
-                    }}
-                    className="text-gray-400 hover:text-red-600"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+                  <div className="flex items-center gap-4">
+                    <span
+                      className={`text-lg font-semibold ${
+                        tx.type === "income"
+                          ? "text-green-600"
+                          : tx.type === "expense"
+                          ? "text-red-600"
+                          : "text-purple-600"
+                      }`}
+                    >
+                      {formatCurrencyWithSign(tx.amount, currency, tx.type)}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setEditingId(tx.id);
+                        setShowForm(true);
+                      }}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm("Delete this transaction?")) {
+                          deleteMutation.mutate(tx.id);
+                        }
+                      }}
+                      className="text-gray-400 hover:text-red-600"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </div>
     </div>
