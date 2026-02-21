@@ -67,4 +67,29 @@ describe("DashboardPage", () => {
       expect(screen.getByText(/food & dining/i)).toBeInTheDocument();
     });
   });
+
+  it("displays adjustments stat card when adjustments exist", async () => {
+    renderWithProviders(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/adjustments/i)).toBeInTheDocument();
+      // $500.00 with positive sign appears in stat card and transactions
+      expect(screen.getAllByText(/\+\$500\.00/).length).toBeGreaterThan(0);
+    });
+  });
+
+  it("displays adjustment transaction in recent list with purple color", async () => {
+    renderWithProviders(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/starting balance/i)).toBeInTheDocument();
+    });
+
+    // Find the amount element for the adjustment - it should have purple color class
+    const amountElements = screen.getAllByText(/\$500\.00/);
+    const adjustmentAmount = amountElements.find((el) =>
+      el.classList.contains("text-purple-600")
+    );
+    expect(adjustmentAmount).toBeTruthy();
+  });
 });

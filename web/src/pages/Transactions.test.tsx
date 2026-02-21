@@ -114,4 +114,111 @@ describe("TransactionsPage", () => {
       expect(deleteButtons.length).toBeGreaterThan(0);
     });
   });
+
+  it("displays adjustment transaction with purple badge", async () => {
+    renderWithProviders(<TransactionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("adjustment")).toBeInTheDocument();
+      expect(screen.getByText(/starting balance/i)).toBeInTheDocument();
+    });
+
+    // Verify purple styling on adjustment badge
+    const adjustmentBadge = screen.getByText("adjustment");
+    expect(adjustmentBadge).toHaveClass("bg-purple-100", "text-purple-700");
+  });
+
+  it("shows adjustment option in transaction form", async () => {
+    renderWithProviders(<TransactionsPage />);
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /add transaction/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /add transaction/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/expense/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/income/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/adjustment/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows helper text when adjustment type is selected", async () => {
+    renderWithProviders(<TransactionsPage />);
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /add transaction/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /add transaction/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/adjustment/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByLabelText(/adjustment/i));
+
+    await waitFor(() => {
+      expect(screen.getByText(/use positive values to add to balance/i)).toBeInTheDocument();
+    });
+  });
+
+  it("allows negative amount for adjustment type", async () => {
+    renderWithProviders(<TransactionsPage />);
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /add transaction/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /add transaction/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/adjustment/i)).toBeInTheDocument();
+    });
+
+    // Select adjustment type
+    await user.click(screen.getByLabelText(/adjustment/i));
+
+    // Amount input should allow negative values (no min attribute)
+    const amountInput = screen.getByPlaceholderText(/-100.00 or 100.00/i);
+    expect(amountInput).toBeInTheDocument();
+    expect(amountInput).not.toHaveAttribute("min");
+  });
+
+  it("can submit adjustment transaction", async () => {
+    renderWithProviders(<TransactionsPage />);
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /add transaction/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /add transaction/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/adjustment/i)).toBeInTheDocument();
+    });
+
+    // Select adjustment type
+    await user.click(screen.getByLabelText(/adjustment/i));
+
+    // Fill amount (negative for correction)
+    const amountInput = screen.getByPlaceholderText(/-100.00 or 100.00/i);
+    await user.type(amountInput, "-50.00");
+
+    // Fill description
+    await user.type(screen.getByPlaceholderText(/what was this for/i), "Balance correction");
+
+    // Submit
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    // Form should close after successful submission
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /save/i })).not.toBeInTheDocument();
+    });
+  });
 });
