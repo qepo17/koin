@@ -287,20 +287,94 @@ app.get("/command/:id", async (c) => {
 
   const records = JSON.parse(command.preview);
 
+  // Auto-expire: update status in DB if expired
+  if (isExpired && command.status === "pending") {
+    await db
+      .update(aiCommands)
+      .set({ status: "expired" })
+      .where(eq(aiCommands.id, id));
+  }
+
   return c.json({
     data: {
-      commandId: command.id,
-      status: isExpired ? "expired" : command.status,
+      id: command.id,
       prompt: command.prompt,
       interpretation: command.interpretation,
+      status: isExpired ? "expired" : command.status,
       preview: {
         matchCount: records.length,
         records,
       },
-      expiresIn: isExpired ? 0 : expiresIn,
+      expiresAt: command.expiresAt.toISOString(),
       createdAt: command.createdAt.toISOString(),
       executedAt: command.executedAt?.toISOString() || null,
       result: command.result ? JSON.parse(command.result) : null,
+    },
+  });
+});
+
+// GET /api/ai/commands - List user's commands with pagination
+app.get("/commands", async (c) => {
+  const userId = c.get("userId");
+  const { status, limit: limitParam, offset: offsetParam } = c.req.query();
+
+  // Parse and validate pagination params
+  const limit = Math.min(Math.max(1, parseInt(limitParam || "20", 10) || 20), 100);
+  const offset = Math.max(0, parseInt(offsetParam || "0", 10) || 0);
+
+  // Build query conditions
+  const conditions = [eq(aiCommands.userId, userId)];
+  if (status) {
+    // Validate status value
+    const validStatuses = ["pending", "confirmed", "cancelled", "expired"];
+    if (validStatuses.includes(status)) {
+      conditions.push(eq(aiCommands.status, status as "pending" | "confirmed" | "cancelled" | "expired"));
+    }
+  }
+
+  // Get total count
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(aiCommands)
+    .where(and(...conditions));
+
+  // Get paginated commands
+  const commands = await db
+    .select({
+      id: aiCommands.id,
+      prompt: aiCommands.prompt,
+      interpretation: aiCommands.interpretation,
+      status: aiCommands.status,
+      expiresAt: aiCommands.expiresAt,
+      createdAt: aiCommands.createdAt,
+      executedAt: aiCommands.executedAt,
+    })
+    .from(aiCommands)
+    .where(and(...conditions))
+    .orderBy(desc(aiCommands.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  // Auto-expire check: mark stale pending commands as expired
+  const now = new Date();
+  const formattedCommands = commands.map(cmd => {
+    const isExpired = cmd.status === "pending" && now > cmd.expiresAt;
+    return {
+      id: cmd.id,
+      prompt: cmd.prompt,
+      interpretation: cmd.interpretation,
+      status: isExpired ? "expired" : cmd.status,
+      createdAt: cmd.createdAt.toISOString(),
+      executedAt: cmd.executedAt?.toISOString() || null,
+    };
+  });
+
+  return c.json({
+    data: {
+      commands: formattedCommands,
+      total: count,
+      limit,
+      offset,
     },
   });
 });
