@@ -434,20 +434,35 @@ app.post("/command/:id/confirm", async (c) => {
   if (action.changes.type) changes.type = action.changes.type;
 
   // Batch update all matching transactions
-  const result = await db
+  await db
     .update(transactions)
     .set(changes)
     .where(and(
       inArray(transactions.id, transactionIds),
       eq(transactions.userId, userId)
-    ))
-    .returning({ id: transactions.id });
-  const updatedCount = result.length;
+    ));
+
+  // Fetch the updated transactions with category names
+  const updatedTransactions = await db
+    .select({
+      id: transactions.id,
+      description: transactions.description,
+      category: categories.name,
+    })
+    .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .where(and(
+      inArray(transactions.id, transactionIds),
+      eq(transactions.userId, userId)
+    ));
+
+  const updatedCount = updatedTransactions.length;
 
   // Update command with execution result
   const executionResult = {
     success: true,
     updatedCount,
+    transactions: updatedTransactions,
     updatedAt: now.toISOString(),
   };
 
@@ -469,8 +484,10 @@ app.post("/command/:id/confirm", async (c) => {
     data: {
       commandId: claimed.id,
       status: "confirmed",
-      updatedCount,
-      message: `Successfully updated ${updatedCount} transaction(s)`,
+      result: {
+        updatedCount,
+        transactions: updatedTransactions,
+      },
     },
   });
 });

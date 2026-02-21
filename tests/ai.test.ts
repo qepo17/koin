@@ -407,8 +407,11 @@ describe("AI Command Endpoint", () => {
       expect(status).toBe(200);
       expect(data.data.commandId).toBe(createData.data.commandId);
       expect(data.data.status).toBe("confirmed");
-      expect(data.data.updatedCount).toBe(2);
-      expect(data.data.message).toContain("2 transaction");
+      expect(data.data.result.updatedCount).toBe(2);
+      expect(data.data.result.transactions).toHaveLength(2);
+      expect(data.data.result.transactions[0]).toHaveProperty("id");
+      expect(data.data.result.transactions[0]).toHaveProperty("description");
+      expect(data.data.result.transactions[0]).toHaveProperty("category");
 
       // Verify transactions were updated
       const db = getTestDb();
