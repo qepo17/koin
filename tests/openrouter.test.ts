@@ -35,12 +35,14 @@ describe("OpenRouter Client", () => {
       expect(prompt).toContain("No categories defined yet");
     });
 
-    it("should include allowed operations", () => {
+    it("should include security rules and allowed operations", () => {
       const prompt = buildSystemPrompt(mockCategories, "USD");
 
-      expect(prompt).toContain("UPDATE operations");
-      expect(prompt).toContain("CANNOT");
-      expect(prompt).toContain("Delete transactions");
+      // New secure prompt includes security rules
+      expect(prompt).toContain("CRITICAL SECURITY RULES");
+      expect(prompt).toContain("update_transactions");
+      expect(prompt).toContain("MUST NOT");
+      expect(prompt).toContain("DELETE");
     });
 
     it("should sanitize category names to prevent prompt injection", () => {
