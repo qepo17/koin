@@ -46,6 +46,13 @@ export class OpenRouterAPIError extends Error {
   }
 }
 
+export class OpenRouterConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OpenRouterConfigError";
+  }
+}
+
 export class OpenRouterValidationError extends Error {
   constructor(message: string, public details?: unknown) {
     super(message);
@@ -287,7 +294,9 @@ export function createOpenRouterClient(): OpenRouterClient {
   const model = process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4";
 
   if (!apiKey) {
-    throw new Error("OPENROUTER_API_KEY environment variable is required");
+    throw new OpenRouterConfigError(
+      "AI features are not configured. Please set OPENROUTER_API_KEY."
+    );
   }
 
   return new OpenRouterClient({ apiKey, model });
