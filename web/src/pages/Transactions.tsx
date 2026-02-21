@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   transactions,
@@ -8,6 +8,50 @@ import {
 } from "../lib/api";
 import { useAuth } from "../hooks/useAuth";
 import { formatCurrencyWithSign } from "../lib/currency";
+
+// Helper to format date for grouping (YYYY-MM-DD)
+function getDateKey(dateStr: string): string {
+  return new Date(dateStr).toISOString().split("T")[0];
+}
+
+// Helper to format date header
+function formatDateHeader(dateKey: string): string {
+  const date = new Date(dateKey + "T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  const dateOnly = new Date(date);
+  dateOnly.setHours(0, 0, 0, 0);
+  
+  if (dateOnly.getTime() === today.getTime()) {
+    return "Today";
+  }
+  if (dateOnly.getTime() === yesterday.getTime()) {
+    return "Yesterday";
+  }
+  
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+// Group transactions by date
+function groupByDate(txs: Transaction[]): Map<string, Transaction[]> {
+  const groups = new Map<string, Transaction[]>();
+  for (const tx of txs) {
+    const key = getDateKey(tx.date);
+    const existing = groups.get(key) || [];
+    existing.push(tx);
+    groups.set(key, existing);
+  }
+  return groups;
+}
 
 export function TransactionsPage() {
   const { user } = useAuth();
@@ -45,6 +89,9 @@ export function TransactionsPage() {
 
   const txs = txList?.data ?? [];
   const cats = catList?.data ?? [];
+  
+  // Group transactions by date
+  const groupedTxs = useMemo(() => groupByDate(txs), [txs]);
 
   const clearFilters = () => {
     setStartDate("");
@@ -157,70 +204,82 @@ export function TransactionsPage() {
                 {hasFilters && " (filtered)"}
               </p>
             </div>
-            <ul className="divide-y divide-gray-200">
-              {txs.map((tx) => (
-                <li
-                  key={tx.id}
-                  className="px-6 py-4 flex items-center justify-between hover:bg-gray-50"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`px-2 py-1 text-xs rounded-full ${
-                          tx.type === "income"
-                            ? "bg-green-100 text-green-700"
-                            : tx.type === "expense"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-purple-100 text-purple-700"
-                        }`}
-                      >
-                        {tx.type}
-                      </span>
-                      <p className="font-medium text-gray-900">
-                        {tx.description || "No description"}
-                      </p>
-                    </div>
-                    <p className="mt-1 text-sm text-gray-500">
-                      {new Date(tx.date).toLocaleDateString()} •{" "}
-                      {cats.find((c) => c.id === tx.categoryId)?.name ||
-                        "No category"}
+            <div>
+              {Array.from(groupedTxs.entries()).map(([dateKey, dateTxs]) => (
+                <div key={dateKey}>
+                  {/* Date Header */}
+                  <div className="px-6 py-2 bg-gray-100 border-y border-gray-200 sticky top-0">
+                    <p className="text-sm font-medium text-gray-700">
+                      {formatDateHeader(dateKey)}
                     </p>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span
-                      className={`text-lg font-semibold ${
-                        tx.type === "income"
-                          ? "text-green-600"
-                          : tx.type === "expense"
-                          ? "text-red-600"
-                          : "text-purple-600"
-                      }`}
-                    >
-                      {formatCurrencyWithSign(tx.amount, currency, tx.type)}
-                    </span>
-                    <button
-                      onClick={() => {
-                        setEditingId(tx.id);
-                        setShowForm(true);
-                      }}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm("Delete this transaction?")) {
-                          deleteMutation.mutate(tx.id);
-                        }
-                      }}
-                      className="text-gray-400 hover:text-red-600"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </li>
+                  {/* Transactions for this date */}
+                  <ul className="divide-y divide-gray-200">
+                    {dateTxs.map((tx) => (
+                      <li
+                        key={tx.id}
+                        className="px-6 py-4 flex items-center justify-between hover:bg-gray-50"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`px-2 py-1 text-xs rounded-full ${
+                                tx.type === "income"
+                                  ? "bg-green-100 text-green-700"
+                                  : tx.type === "expense"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-purple-100 text-purple-700"
+                              }`}
+                            >
+                              {tx.type}
+                            </span>
+                            <p className="font-medium text-gray-900">
+                              {tx.description || "No description"}
+                            </p>
+                          </div>
+                          <p className="mt-1 text-sm text-gray-500">
+                            {cats.find((c) => c.id === tx.categoryId)?.name ||
+                              "No category"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span
+                            className={`text-lg font-semibold ${
+                              tx.type === "income"
+                                ? "text-green-600"
+                                : tx.type === "expense"
+                                ? "text-red-600"
+                                : "text-purple-600"
+                            }`}
+                          >
+                            {formatCurrencyWithSign(tx.amount, currency, tx.type)}
+                          </span>
+                          <button
+                            onClick={() => {
+                              setEditingId(tx.id);
+                              setShowForm(true);
+                            }}
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm("Delete this transaction?")) {
+                                deleteMutation.mutate(tx.id);
+                              }
+                            }}
+                            className="text-gray-400 hover:text-red-600"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           </>
         )}
       </div>

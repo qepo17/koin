@@ -304,4 +304,15 @@ describe("TransactionsPage", () => {
       expect(screen.getByText(/3 transactions/i)).toBeInTheDocument();
     });
   });
+
+  it("displays date separators for transactions", async () => {
+    renderWithProviders(<TransactionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/coffee/i)).toBeInTheDocument();
+    });
+
+    // Should show "Today" as date header since mock data uses current date
+    expect(screen.getByText(/today/i)).toBeInTheDocument();
+  });
 });
