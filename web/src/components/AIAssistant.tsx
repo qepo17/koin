@@ -229,7 +229,7 @@ export function AIAssistant({ isOpen, onClose }: AIAssistantProps) {
                     <PreviewCard
                       key={record.id}
                       record={record}
-                      changes={preview.changes}
+                      changes={preview.changes || {}}
                       currency={currency}
                     />
                   ))}
