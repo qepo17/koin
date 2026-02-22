@@ -242,6 +242,12 @@ app.post("/command", async (c) => {
     // Generate preview records
     const records = generatePreviewRecords(matchingTransactions, interpretation.action.changes, categoryLookup);
 
+    // Build changes object with category name lookup
+    const changes: Record<string, unknown> = { ...interpretation.action.changes };
+    if (interpretation.action.changes.categoryId) {
+      changes.categoryName = categoryLookup.get(interpretation.action.changes.categoryId);
+    }
+
     // Store command in database
     const expiresAt = new Date(Date.now() + COMMAND_EXPIRY_MS);
     const [command] = await db
@@ -265,6 +271,7 @@ app.post("/command", async (c) => {
           matchCount: matchingTransactions.length,
           records,
         },
+        changes,
         expiresIn: COMMAND_EXPIRY_SECONDS,
       },
     }, 201);
