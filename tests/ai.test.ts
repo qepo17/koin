@@ -137,12 +137,13 @@ describe("AI Command Endpoint", () => {
       // #30 spec: expiresIn (seconds) instead of expiresAt
       expect(data.data.expiresIn).toBe(300);
 
-      // Check preview record structure per #30
+      // Check preview record structure
       const record = data.data.preview.records[0];
       expect(record.id).toBeDefined();
-      expect(record.before).toBeDefined();
-      expect(record.after).toBeDefined();
-      expect(record.after.category).toBe("Food");
+      expect(record.description).toBeDefined();
+      expect(record.amount).toBeDefined();
+      expect(record.date).toBeDefined();
+      expect(record.type).toBeDefined();
     });
 
     it("should return 404 when no transactions match", async () => {
@@ -581,7 +582,7 @@ describe("AI Command Endpoint", () => {
       });
 
       expect(data.data.preview.matchCount).toBe(1);
-      expect(data.data.preview.records[0].before.amount).toBe("5.50");
+      expect(data.data.preview.records[0].amount).toBe("5.50");
     });
 
     it("should filter by transaction_type", async () => {
@@ -631,8 +632,8 @@ describe("AI Command Endpoint", () => {
       });
 
       expect(data.data.preview.matchCount).toBe(1);
-      expect(data.data.preview.records[0].before.category).toBe("Food");
-      expect(data.data.preview.records[0].after.category).toBe("Transport");
+      expect(data.data.preview.records[0].categoryName).toBe("Food");
+      expect(data.data.changes.categoryName).toBe("Transport");
     });
   });
 
@@ -648,7 +649,7 @@ describe("AI Command Endpoint", () => {
         prompt: "Change coffee to $10",
       });
 
-      expect(data.data.preview.records[0].after.amount).toBe("10.00");
+      expect(data.data.changes.amount).toBe("10.00");
     });
 
     it("should change description", async () => {
@@ -662,7 +663,7 @@ describe("AI Command Endpoint", () => {
         prompt: "Rename coffee to Morning coffee",
       });
 
-      expect(data.data.preview.records[0].after.description).toBe("Morning coffee");
+      expect(data.data.changes.description).toBe("Morning coffee");
     });
 
     it("should change category", async () => {
@@ -676,8 +677,8 @@ describe("AI Command Endpoint", () => {
         prompt: "Put Groceries in Food",
       });
 
-      expect(data.data.preview.records[0].before.category).toBeNull();
-      expect(data.data.preview.records[0].after.category).toBe("Food");
+      expect(data.data.preview.records[0].categoryName).toBeNull();
+      expect(data.data.changes.categoryName).toBe("Food");
     });
   });
 });
