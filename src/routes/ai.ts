@@ -126,24 +126,15 @@ function generatePreviewRecords(
   changes: AIAction["changes"],
   categoryLookup: Map<string, string>
 ) {
-  return matchingTransactions.map(tx => {
-    const before = {
-      description: tx.description,
-      category: tx.categoryId ? categoryLookup.get(tx.categoryId) || null : null,
-      amount: tx.amount,
-    };
-
-    const after = { ...before };
-    if (changes.amount) after.amount = changes.amount;
-    if (changes.description !== undefined) after.description = changes.description;
-    if (changes.categoryId) after.category = categoryLookup.get(changes.categoryId) || changes.categoryId;
-
-    return {
-      id: tx.id,
-      before,
-      after,
-    };
-  });
+  return matchingTransactions.map(tx => ({
+    id: tx.id,
+    description: tx.description,
+    amount: tx.amount,
+    date: tx.date.toISOString(),
+    categoryId: tx.categoryId,
+    categoryName: tx.categoryId ? categoryLookup.get(tx.categoryId) || null : null,
+    type: tx.type as "income" | "expense" | "adjustment",
+  }));
 }
 
 // POST /api/ai/command - Create a new command (interpret & stage)
