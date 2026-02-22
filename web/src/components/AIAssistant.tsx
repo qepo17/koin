@@ -335,12 +335,14 @@ function PreviewCard({
   changes: AICommandPreview["changes"];
   currency: string;
 }) {
-  const date = new Date(record.date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
+  const date = record.date
+    ? new Date(record.date).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })
+    : "—";
 
-  const hasNewCategory = changes.categoryName && changes.categoryName !== record.categoryName;
+  const hasNewCategory = changes?.categoryName && changes.categoryName !== record.categoryName;
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-3">

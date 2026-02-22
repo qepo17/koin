@@ -30,7 +30,8 @@ export function getCurrencySymbol(currency: string): string {
 /**
  * Format number with thousand separators
  */
-export function formatNumber(num: number, decimals: number = 2): string {
+export function formatNumber(num: number | null | undefined, decimals: number = 2): string {
+  if (num == null || isNaN(num)) return "0.00";
   return num.toLocaleString("en-US", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
@@ -40,8 +41,10 @@ export function formatNumber(num: number, decimals: number = 2): string {
 /**
  * Format amount with currency symbol and thousand separators
  */
-export function formatCurrency(amount: number | string, currency: string): string {
+export function formatCurrency(amount: number | string | null | undefined, currency: string): string {
+  if (amount == null) return `${getCurrencySymbol(currency)}0.00`;
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
+  if (isNaN(num)) return `${getCurrencySymbol(currency)}0.00`;
   const symbol = getCurrencySymbol(currency);
   return `${symbol}${formatNumber(num)}`;
 }
@@ -50,11 +53,13 @@ export function formatCurrency(amount: number | string, currency: string): strin
  * Format amount with sign, currency symbol, and thousand separators
  */
 export function formatCurrencyWithSign(
-  amount: number | string,
+  amount: number | string | null | undefined,
   currency: string,
   type: "income" | "expense" | "adjustment"
 ): string {
+  if (amount == null) return `${getCurrencySymbol(currency)}0.00`;
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
+  if (isNaN(num)) return `${getCurrencySymbol(currency)}0.00`;
   const symbol = getCurrencySymbol(currency);
   
   if (type === "adjustment") {
