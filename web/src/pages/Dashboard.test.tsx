@@ -109,8 +109,8 @@ describe("DashboardPage", () => {
       expect(screen.getByText(/click to adjust/i)).toBeInTheDocument();
     });
 
-    // Click on the Balance card
-    const balanceCard = screen.getByRole("button");
+    // Click on the Balance card (has "Click to adjust" text)
+    const balanceCard = screen.getByText(/click to adjust/i).closest('[role="button"]') as HTMLElement;
     await user.click(balanceCard);
 
     // Modal should appear
@@ -130,7 +130,8 @@ describe("DashboardPage", () => {
     });
 
     // Click on the Balance card
-    await user.click(screen.getByRole("button"));
+    const balanceCard = screen.getByText(/click to adjust/i).closest('[role="button"]') as HTMLElement;
+    await user.click(balanceCard);
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText("0.00")).toBeInTheDocument();
@@ -155,7 +156,8 @@ describe("DashboardPage", () => {
       expect(screen.getByText(/click to adjust/i)).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button"));
+    const balanceCard = screen.getByText(/click to adjust/i).closest('[role="button"]') as HTMLElement;
+    await user.click(balanceCard);
 
     await waitFor(() => {
       expect(screen.getByText(/adjust balance/i)).toBeInTheDocument();
@@ -176,7 +178,8 @@ describe("DashboardPage", () => {
       expect(screen.getByText(/click to adjust/i)).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button"));
+    const balanceCard = screen.getByText(/click to adjust/i).closest('[role="button"]') as HTMLElement;
+    await user.click(balanceCard);
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText("0.00")).toBeInTheDocument();
