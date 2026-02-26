@@ -117,14 +117,35 @@ export const categories = {
 
 // Summary API
 export const summary = {
-  get: (params?: { startDate?: string; endDate?: string }) => {
+  get: (from?: string, to?: string) => {
     const searchParams = new URLSearchParams();
-    if (params?.startDate) searchParams.set("startDate", params.startDate);
-    if (params?.endDate) searchParams.set("endDate", params.endDate);
+    if (from) searchParams.set("from", from);
+    if (to) searchParams.set("to", to);
     const query = searchParams.toString();
     return request<{ data: Summary }>(`/summary${query ? `?${query}` : ""}`);
   },
+  
+  trend: (params?: { period?: string; from?: string; to?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.period) searchParams.set("period", params.period);
+    if (params?.from) searchParams.set("from", params.from);
+    if (params?.to) searchParams.set("to", params.to);
+    const query = searchParams.toString();
+    return request<{ data: TrendData }>(`/summary/trend${query ? `?${query}` : ""}`);
+  },
 };
+
+export interface TrendData {
+  period: string;
+  from: string;
+  to: string;
+  points: Array<{
+    date: string;
+    income: number;
+    expenses: number;
+    balance: number;
+  }>;
+}
 
 // Settings API
 export const settings = {
