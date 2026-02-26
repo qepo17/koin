@@ -2,7 +2,6 @@ import {
   createRootRoute,
   createRoute,
   Outlet,
-  redirect,
   Navigate,
   useLocation,
 } from "@tanstack/react-router";
@@ -74,7 +73,7 @@ const protectedLayout = createRoute({
     }
 
     if (!isAuthenticated) {
-      throw redirect({ to: "/login" });
+      return <Navigate to="/login" />;
     }
 
     return (
