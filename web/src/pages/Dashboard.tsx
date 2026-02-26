@@ -5,6 +5,9 @@ import { Link } from "@tanstack/react-router";
 import { useAuth } from "../hooks/useAuth";
 import { formatCurrency, formatCurrencyWithSign, getCurrencySymbol } from "../lib/currency";
 import { DateRangePicker, getDefaultDateRange, type DateRange } from "../components/DateRangePicker";
+import { BalanceTrendChart } from "../components/BalanceTrendChart";
+import { IncomeExpenseChart } from "../components/IncomeExpenseChart";
+import { CategoryDonutChart } from "../components/CategoryDonutChart";
 
 // Helper to calculate previous period (same duration before the selected range)
 function getPreviousPeriod(range: DateRange): DateRange {
@@ -58,9 +61,26 @@ export function DashboardPage() {
     }
   );
 
+  // Trend data for charts (daily for short ranges, monthly for long ranges)
+  const trendPeriod = hasDateFilter ? (
+    (new Date(dateRange.to).getTime() - new Date(dateRange.from).getTime()) > 90 * 24 * 60 * 60 * 1000
+      ? "monthly" 
+      : "daily"
+  ) : "monthly";
+
+  const { data: trendData, isLoading: trendLoading } = useQuery({
+    queryKey: ["summary", "trend", trendPeriod, dateRange],
+    queryFn: () => summary.trend({
+      period: trendPeriod,
+      from: dateRange.from || undefined,
+      to: dateRange.to || undefined,
+    }),
+  });
+
   const stats = summaryData?.data;
   const prevStats = prevSummaryData?.data;
   const recent = recentTransactions?.data?.slice(0, 5) ?? [];
+  const trendPoints = trendData?.data?.points ?? [];
 
   const handleBalanceAdjusted = () => {
     queryClient.invalidateQueries({ queryKey: ["summary"] });
@@ -139,6 +159,36 @@ export function DashboardPage() {
         />
       )}
 
+      {/* Balance Trend Chart */}
+      <div className="bg-white rounded-lg shadow p-6 mb-8">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Balance Trend</h2>
+        <BalanceTrendChart
+          data={trendPoints}
+          currency={currency}
+          isLoading={trendLoading}
+        />
+      </div>
+
+      {/* Charts Row: Income/Expense + Category Donut */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Income vs Expenses</h2>
+          <IncomeExpenseChart
+            data={trendPoints}
+            currency={currency}
+            isLoading={trendLoading}
+          />
+        </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Spending by Category</h2>
+          <CategoryDonutChart
+            data={stats?.byCategory ?? []}
+            currency={currency}
+            isLoading={summaryLoading}
+          />
+        </div>
+      </div>
+
       {/* Recent Transactions */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -194,31 +244,7 @@ export function DashboardPage() {
         )}
       </div>
 
-      {/* Spending by Category */}
-      {stats?.byCategory && stats.byCategory.length > 0 && (
-        <div className="mt-8 bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Spending by Category
-            </h2>
-          </div>
-          <ul className="divide-y divide-gray-200">
-            {stats.byCategory.map((cat, i) => (
-              <li
-                key={cat.categoryId || i}
-                className="px-6 py-4 flex items-center justify-between"
-              >
-                <span className="text-gray-900">
-                  {cat.categoryName || "Uncategorized"}
-                </span>
-                <span className="font-medium text-gray-900">
-                  {formatCurrency(cat.total, currency)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+
     </div>
   );
 }
