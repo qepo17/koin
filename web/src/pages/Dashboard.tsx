@@ -5,15 +5,45 @@ import { Link } from "@tanstack/react-router";
 import { useAuth } from "../hooks/useAuth";
 import { formatCurrency, formatCurrencyWithSign, getCurrencySymbol } from "../lib/currency";
 
+// Helper to get date range for this month and last month
+function getMonthRanges() {
+  const now = new Date();
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+
+  const formatDate = (d: Date) => d.toISOString().split("T")[0];
+
+  return {
+    thisMonth: {
+      from: formatDate(thisMonthStart),
+      to: formatDate(now),
+    },
+    lastMonth: {
+      from: formatDate(lastMonthStart),
+      to: formatDate(lastMonthEnd),
+    },
+  };
+}
+
 export function DashboardPage() {
   const { user } = useAuth();
   const currency = user?.currency || "USD";
   const queryClient = useQueryClient();
   const [showBalanceModal, setShowBalanceModal] = useState(false);
 
+  const ranges = getMonthRanges();
+
+  // Current month summary
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
-    queryKey: ["summary"],
-    queryFn: () => summary.get(),
+    queryKey: ["summary", "thisMonth", ranges.thisMonth],
+    queryFn: () => summary.get(ranges.thisMonth.from, ranges.thisMonth.to),
+  });
+
+  // Previous month summary for comparison
+  const { data: prevSummaryData } = useQuery({
+    queryKey: ["summary", "lastMonth", ranges.lastMonth],
+    queryFn: () => summary.get(ranges.lastMonth.from, ranges.lastMonth.to),
   });
 
   const { data: recentTransactions, isLoading: transactionsLoading } = useQuery(
@@ -24,6 +54,7 @@ export function DashboardPage() {
   );
 
   const stats = summaryData?.data;
+  const prevStats = prevSummaryData?.data;
   const recent = recentTransactions?.data?.slice(0, 5) ?? [];
 
   const handleBalanceAdjusted = () => {
@@ -43,6 +74,7 @@ export function DashboardPage() {
           currency={currency}
           isLoading={summaryLoading}
           color="green"
+          previousValue={prevStats?.income}
         />
         <StatCard
           title="Expenses"
@@ -50,6 +82,7 @@ export function DashboardPage() {
           currency={currency}
           isLoading={summaryLoading}
           color="red"
+          previousValue={prevStats?.expenses}
         />
         {stats?.adjustments !== undefined && stats.adjustments !== 0 && (
           <StatCard
@@ -175,6 +208,7 @@ function StatCard({
   showSign = false,
   onClick,
   editable = false,
+  previousValue,
 }: {
   title: string;
   value: number;
@@ -184,6 +218,7 @@ function StatCard({
   showSign?: boolean;
   onClick?: () => void;
   editable?: boolean;
+  previousValue?: number;
 }) {
   const colorClasses = {
     green: "text-green-600",
@@ -195,6 +230,13 @@ function StatCard({
   const formattedValue = showSign
     ? `${value >= 0 ? "+" : ""}${formatCurrency(value, currency)}`
     : formatCurrency(value, currency);
+
+  // Calculate percentage change
+  const change = previousValue !== undefined && previousValue !== 0
+    ? ((value - previousValue) / Math.abs(previousValue)) * 100
+    : previousValue === 0 && value !== 0
+    ? 100 // Went from 0 to something
+    : null;
 
   return (
     <div
@@ -215,11 +257,47 @@ function StatCard({
       {isLoading ? (
         <div className="mt-2 h-8 bg-gray-200 rounded animate-pulse" />
       ) : (
-        <p className={`mt-2 text-3xl font-bold ${colorClasses[color]}`}>
-          {formattedValue}
-        </p>
+        <>
+          <p className={`mt-2 text-3xl font-bold ${colorClasses[color]}`}>
+            {formattedValue}
+          </p>
+          {change !== null && (
+            <ChangeIndicator change={change} label="vs last month" />
+          )}
+        </>
       )}
     </div>
+  );
+}
+
+function ChangeIndicator({ change, label }: { change: number; label: string }) {
+  const isPositive = change >= 0;
+  const absChange = Math.abs(change);
+  
+  // For very small changes, show as no change
+  if (absChange < 0.1) {
+    return (
+      <p className="mt-1 text-xs text-gray-400">
+        No change {label}
+      </p>
+    );
+  }
+
+  return (
+    <p className={`mt-1 text-xs flex items-center gap-1 ${
+      isPositive ? "text-green-600" : "text-red-600"
+    }`}>
+      {isPositive ? (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+        </svg>
+      ) : (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+        </svg>
+      )}
+      <span>{absChange.toFixed(1)}% {label}</span>
+    </p>
   );
 }
 
