@@ -103,7 +103,7 @@ export function DashboardPage() {
   return (
     <div>
       {/* Header with date picker */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 relative z-10">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <DateRangePicker value={dateRange} onChange={setDateRange} />
       </div>
