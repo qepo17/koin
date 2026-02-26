@@ -7,11 +7,25 @@ const app = new Hono();
 // Get financial summary (scoped to user)
 app.get("/", async (c) => {
   const userId = c.get("userId");
-  const { startDate, endDate } = c.req.query();
+  const { from, to } = c.req.query();
   
   const conditions = [eq(transactions.userId, userId)];
-  if (startDate) conditions.push(gte(transactions.date, new Date(startDate)));
-  if (endDate) conditions.push(lte(transactions.date, new Date(endDate)));
+  
+  // Date filtering - expects ISO format (YYYY-MM-DD)
+  if (from) {
+    const fromDate = new Date(from);
+    if (!isNaN(fromDate.getTime())) {
+      conditions.push(gte(transactions.date, fromDate));
+    }
+  }
+  if (to) {
+    const toDate = new Date(to);
+    if (!isNaN(toDate.getTime())) {
+      // Include the entire "to" day by setting to end of day
+      toDate.setHours(23, 59, 59, 999);
+      conditions.push(lte(transactions.date, toDate));
+    }
+  }
   
   const baseWhere = and(...conditions);
   
