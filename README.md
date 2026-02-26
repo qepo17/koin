@@ -1,111 +1,66 @@
 # 🪙 Koin
 
-Personal finance management API. Built for AI-first workflows.
+Personal finance tracker built for AI integration.
+
+## What's Different
+
+**1. AI Agent Integration** — Generate a personalized `SKILL.md` from Settings. Drop it in your AI agent's workspace, and it can manage your finances via the API.
+
+**2. AI Commands** — Use natural language to bulk update transactions:
+- "Categorize all Starbucks as Food"
+- "Move Netflix and Spotify to Entertainment"
+- "Change last month's miscellaneous to expenses"
+
+Changes are previewed before execution. No surprises.
+
+**3. Simple Finance Tracking** — Income, expenses, categories, dashboard with charts. The basics, done right.
 
 ## Stack
 
-- **Runtime:** [Bun](https://bun.sh)
-- **Framework:** [Hono](https://hono.dev)
-- **Database:** PostgreSQL + [Drizzle ORM](https://orm.drizzle.team)
-- **Validation:** [Zod](https://zod.dev)
+- **Backend:** Bun + Hono + Drizzle ORM + PostgreSQL
+- **Frontend:** React 19 + Vite + TailwindCSS + Recharts
+- **AI:** OpenRouter (Claude, GPT, etc.)
 
 ## Quick Start
 
-### With Docker (recommended)
-
 ```bash
-# Start API + PostgreSQL
+# With Docker
 docker compose up
-
-# Run migrations (in another terminal)
-docker compose exec api bun run db:generate
 docker compose exec api bun run db:migrate
 
-# Optional: Drizzle Studio (DB GUI)
-docker compose --profile tools up studio
+# Without Docker
+bun install && cp .env.example .env
+bun run db:migrate && bun run dev
+cd web && bun install && bun run dev
 ```
 
-API available at `http://localhost:3000`
+- API: `http://localhost:3000`
+- Frontend: `http://localhost:5173`
 
-### Without Docker
-
-```bash
-# Install dependencies
-bun install
-
-# Set up environment
-cp .env.example .env
-# Edit .env with your DATABASE_URL
-
-# Run migrations
-bun run db:generate
-bun run db:migrate
-
-# Start dev server
-bun run dev
-```
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/transactions` | List transactions |
-| POST | `/api/transactions` | Create transaction |
-| GET | `/api/transactions/:id` | Get transaction |
-| PATCH | `/api/transactions/:id` | Update transaction |
-| DELETE | `/api/transactions/:id` | Delete transaction |
-| GET | `/api/categories` | List categories |
-| POST | `/api/categories` | Create category |
-| PATCH | `/api/categories/:id` | Update category |
-| DELETE | `/api/categories/:id` | Delete category |
-| GET | `/api/summary` | Financial summary |
-
-## AI Integration
-
-See [SKILL.md](./SKILL.md) for API usage instructions designed for AI agents.
-
-## Environment Variables
+## Environment
 
 ```env
 DATABASE_URL=postgresql://user:pass@localhost:5432/koin
-PORT=3000
-```
-
-## Development
-
-```bash
-# Generate migration after schema changes
-bun run db:generate
-
-# Apply migrations
-bun run db:migrate
-
-# Open Drizzle Studio (DB GUI)
-bun run db:studio
+OPENROUTER_API_KEY=sk-or-...  # Optional, for AI features
+OPENROUTER_MODEL=anthropic/claude-sonnet-4
 ```
 
 ## Testing
 
-Tests use real PostgreSQL (no mocking) via [testcontainers](https://node.testcontainers.org/).
-
 ```bash
-# Run tests with Docker (recommended)
-bun run test:docker
-# or directly:
-docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
-
-# Run tests locally (requires Docker for testcontainers)
-bun test
-
-# With coverage
-bun test --coverage
+bun run test:all        # Backend + frontend
+bun run test:docker     # Backend only
+cd web && bun run test  # Frontend only
 ```
 
-Tests automatically:
-- Spin up a PostgreSQL container
-- Create all tables
-- Clean up between tests
-- Tear down the container when done
+## AI Integration
+
+1. Go to **Settings → API Tokens**
+2. Create a token and copy the generated `SKILL.md`
+3. Add it to your AI agent's workspace
+4. Your agent can now log expenses, check balances, and manage categories
+
+See [SKILL.md](./SKILL.md) for the full API reference.
 
 ## License
 
