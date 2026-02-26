@@ -202,4 +202,128 @@ describe("Summary API", () => {
       expect(data.data.income).toBe(500); // Should return all data
     });
   });
+
+  describe("GET /api/summary/trend", () => {
+    it("should return daily trend data", async () => {
+      await api.post("/api/transactions", { 
+        type: "income", 
+        amount: "100.00", 
+        date: "2026-01-15T10:00:00Z" 
+      });
+      await api.post("/api/transactions", { 
+        type: "expense", 
+        amount: "30.00", 
+        date: "2026-01-15T14:00:00Z" 
+      });
+      await api.post("/api/transactions", { 
+        type: "income", 
+        amount: "200.00", 
+        date: "2026-01-16T10:00:00Z" 
+      });
+
+      const { status, data } = await api.get(
+        "/api/summary/trend?period=daily&from=2026-01-15&to=2026-01-16"
+      );
+
+      expect(status).toBe(200);
+      expect(data.data.period).toBe("daily");
+      expect(data.data.points).toHaveLength(2);
+      
+      // First day: 100 income, 30 expense
+      expect(data.data.points[0].date).toBe("2026-01-15");
+      expect(data.data.points[0].income).toBe(100);
+      expect(data.data.points[0].expenses).toBe(30);
+      expect(data.data.points[0].balance).toBe(70); // 100 - 30
+      
+      // Second day: 200 income, running balance
+      expect(data.data.points[1].date).toBe("2026-01-16");
+      expect(data.data.points[1].income).toBe(200);
+      expect(data.data.points[1].expenses).toBe(0);
+      expect(data.data.points[1].balance).toBe(270); // 70 + 200
+    });
+
+    it("should return monthly trend data", async () => {
+      await api.post("/api/transactions", { 
+        type: "income", 
+        amount: "1000.00", 
+        date: "2026-01-15T10:00:00Z" 
+      });
+      await api.post("/api/transactions", { 
+        type: "expense", 
+        amount: "400.00", 
+        date: "2026-01-20T10:00:00Z" 
+      });
+      await api.post("/api/transactions", { 
+        type: "income", 
+        amount: "1500.00", 
+        date: "2026-02-10T10:00:00Z" 
+      });
+
+      const { status, data } = await api.get(
+        "/api/summary/trend?period=monthly&from=2026-01-01&to=2026-02-28"
+      );
+
+      expect(status).toBe(200);
+      expect(data.data.period).toBe("monthly");
+      expect(data.data.points).toHaveLength(2);
+      
+      // January
+      expect(data.data.points[0].income).toBe(1000);
+      expect(data.data.points[0].expenses).toBe(400);
+      expect(data.data.points[0].balance).toBe(600);
+      
+      // February
+      expect(data.data.points[1].income).toBe(1500);
+      expect(data.data.points[1].expenses).toBe(0);
+      expect(data.data.points[1].balance).toBe(2100); // 600 + 1500
+    });
+
+    it("should calculate running balance from previous transactions", async () => {
+      // Transaction before the date range
+      await api.post("/api/transactions", { 
+        type: "income", 
+        amount: "500.00", 
+        date: "2026-01-01T10:00:00Z" 
+      });
+      // Transaction in the date range
+      await api.post("/api/transactions", { 
+        type: "income", 
+        amount: "200.00", 
+        date: "2026-01-15T10:00:00Z" 
+      });
+
+      const { status, data } = await api.get(
+        "/api/summary/trend?period=daily&from=2026-01-10&to=2026-01-20"
+      );
+
+      expect(status).toBe(200);
+      // Balance should include the 500 from before the range
+      expect(data.data.points[0].balance).toBe(700); // 500 (prior) + 200
+    });
+
+    it("should reject invalid period", async () => {
+      const { status, data } = await api.get("/api/summary/trend?period=yearly");
+
+      expect(status).toBe(400);
+      expect(data.error).toContain("Invalid period");
+    });
+
+    it("should use default date range when not specified", async () => {
+      await api.post("/api/transactions", { type: "income", amount: "100.00" });
+
+      const { status, data } = await api.get("/api/summary/trend");
+
+      expect(status).toBe(200);
+      expect(data.data.period).toBe("daily");
+      expect(data.data.from).toBeDefined();
+      expect(data.data.to).toBeDefined();
+    });
+
+    it("should require authentication", async () => {
+      const unauthApi = createApi();
+      const { status } = await unauthApi.get("/api/summary/trend");
+
+      expect(status).toBe(401);
+    });
+  });
 });
