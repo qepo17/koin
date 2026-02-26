@@ -4,25 +4,27 @@ import { summary, transactions } from "../lib/api";
 import { Link } from "@tanstack/react-router";
 import { useAuth } from "../hooks/useAuth";
 import { formatCurrency, formatCurrencyWithSign, getCurrencySymbol } from "../lib/currency";
+import { DateRangePicker, getDefaultDateRange, type DateRange } from "../components/DateRangePicker";
 
-// Helper to get date range for this month and last month
-function getMonthRanges() {
-  const now = new Date();
-  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+// Helper to calculate previous period (same duration before the selected range)
+function getPreviousPeriod(range: DateRange): DateRange {
+  if (!range.from || !range.to) {
+    // For "All time", no comparison
+    return { from: "", to: "" };
+  }
+
+  const from = new Date(range.from);
+  const to = new Date(range.to);
+  const duration = to.getTime() - from.getTime();
+  
+  const prevTo = new Date(from.getTime() - 1); // Day before current range starts
+  const prevFrom = new Date(prevTo.getTime() - duration);
 
   const formatDate = (d: Date) => d.toISOString().split("T")[0];
 
   return {
-    thisMonth: {
-      from: formatDate(thisMonthStart),
-      to: formatDate(now),
-    },
-    lastMonth: {
-      from: formatDate(lastMonthStart),
-      to: formatDate(lastMonthEnd),
-    },
+    from: formatDate(prevFrom),
+    to: formatDate(prevTo),
   };
 }
 
@@ -31,19 +33,22 @@ export function DashboardPage() {
   const currency = user?.currency || "USD";
   const queryClient = useQueryClient();
   const [showBalanceModal, setShowBalanceModal] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
 
-  const ranges = getMonthRanges();
+  const prevPeriod = getPreviousPeriod(dateRange);
+  const hasDateFilter = dateRange.from && dateRange.to;
 
-  // Current month summary
+  // Current period summary
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
-    queryKey: ["summary", "thisMonth", ranges.thisMonth],
-    queryFn: () => summary.get(ranges.thisMonth.from, ranges.thisMonth.to),
+    queryKey: ["summary", dateRange],
+    queryFn: () => summary.get(dateRange.from || undefined, dateRange.to || undefined),
   });
 
-  // Previous month summary for comparison
+  // Previous period summary for comparison
   const { data: prevSummaryData } = useQuery({
-    queryKey: ["summary", "lastMonth", ranges.lastMonth],
-    queryFn: () => summary.get(ranges.lastMonth.from, ranges.lastMonth.to),
+    queryKey: ["summary", "prev", prevPeriod],
+    queryFn: () => summary.get(prevPeriod.from || undefined, prevPeriod.to || undefined),
+    enabled: !!prevPeriod.from && !!prevPeriod.to,
   });
 
   const { data: recentTransactions, isLoading: transactionsLoading } = useQuery(
@@ -62,9 +67,26 @@ export function DashboardPage() {
     queryClient.invalidateQueries({ queryKey: ["transactions"] });
   };
 
+  // Get comparison label based on date range
+  const getComparisonLabel = () => {
+    if (!hasDateFilter) return "vs previous period";
+    
+    const from = new Date(dateRange.from);
+    const to = new Date(dateRange.to);
+    const days = Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (days <= 31) return "vs previous period";
+    if (days <= 93) return "vs previous quarter";
+    return "vs previous period";
+  };
+
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
+      {/* Header with date picker */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <DateRangePicker value={dateRange} onChange={setDateRange} />
+      </div>
 
       {/* Stats Cards */}
       <div className={`grid grid-cols-1 gap-6 mb-8 ${stats?.adjustments ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
@@ -75,6 +97,7 @@ export function DashboardPage() {
           isLoading={summaryLoading}
           color="green"
           previousValue={prevStats?.income}
+          comparisonLabel={getComparisonLabel()}
         />
         <StatCard
           title="Expenses"
@@ -83,6 +106,7 @@ export function DashboardPage() {
           isLoading={summaryLoading}
           color="red"
           previousValue={prevStats?.expenses}
+          comparisonLabel={getComparisonLabel()}
         />
         {stats?.adjustments !== undefined && stats.adjustments !== 0 && (
           <StatCard
@@ -209,6 +233,7 @@ function StatCard({
   onClick,
   editable = false,
   previousValue,
+  comparisonLabel = "vs last period",
 }: {
   title: string;
   value: number;
@@ -219,6 +244,7 @@ function StatCard({
   onClick?: () => void;
   editable?: boolean;
   previousValue?: number;
+  comparisonLabel?: string;
 }) {
   const colorClasses = {
     green: "text-green-600",
@@ -262,7 +288,7 @@ function StatCard({
             {formattedValue}
           </p>
           {change !== null && (
-            <ChangeIndicator change={change} label="vs last month" />
+            <ChangeIndicator change={change} label={comparisonLabel} />
           )}
         </>
       )}
