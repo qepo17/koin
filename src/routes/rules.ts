@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, desc, inArray, isNull } from "drizzle-orm";
+import { eq, and, desc, inArray, isNull, sql } from "drizzle-orm";
 import { db, categoryRules, categories, transactions } from "../db";
 import { getDb } from "../db";
 import { createRuleSchema, updateRuleSchema, reorderRulesSchema, testRuleSchema } from "../types/rules";
@@ -124,7 +124,7 @@ app.post("/:id/apply", async (c) => {
     await tx
       .update(categoryRules)
       .set({
-        matchCount: rule.matchCount + matched.length,
+        matchCount: sql`${categoryRules.matchCount} + ${matched.length}`,
         updatedAt: new Date(),
       })
       .where(eq(categoryRules.id, rule.id));
