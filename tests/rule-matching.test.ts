@@ -4,6 +4,7 @@ import type { CategoryRule, TransactionInput } from "../src/types/rules";
 import { getDb, resetDb } from "../src/db";
 import { users, categories, categoryRules } from "../src/db/schema";
 import { eq } from "drizzle-orm";
+import { setupTestDb, teardownTestDb } from "./setup";
 
 // Helper to create a rule object for unit tests (no DB needed)
 function makeRule(overrides: Partial<CategoryRule> = {}): CategoryRule {
@@ -27,16 +28,16 @@ const tx = (description: string, amount: number): TransactionInput => ({ descrip
 describe("Rule Matching Service", () => {
   // Unit tests - no DB needed, just test evaluateRule
   describe("evaluateRule", () => {
-    // We need a DB instance to create the service, but evaluateRule doesn't use it
     let service: RuleMatchingService;
 
-    beforeAll(() => {
+    beforeAll(async () => {
+      await setupTestDb();
       const db = getDb();
       service = createRuleMatchingService(db);
     });
 
-    afterAll(() => {
-      resetDb();
+    afterAll(async () => {
+      await teardownTestDb();
     });
 
     describe("description conditions", () => {
@@ -226,6 +227,7 @@ describe("Rule Matching Service", () => {
     let categoryId2: string;
 
     beforeAll(async () => {
+      await setupTestDb();
       const db = getDb();
       service = createRuleMatchingService(db);
 
@@ -301,7 +303,7 @@ describe("Rule Matching Service", () => {
       await db.delete(categoryRules).where(eq(categoryRules.userId, userId));
       await db.delete(categories).where(eq(categories.userId, userId));
       await db.delete(users).where(eq(users.id, userId));
-      resetDb();
+      await teardownTestDb();
     });
 
     test("returns matching rule", async () => {
