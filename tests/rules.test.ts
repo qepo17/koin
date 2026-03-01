@@ -351,4 +351,72 @@ describe("Rules CRUD API", () => {
       expect(getStatus).toBe(200);
     });
   });
+
+  describe("POST /api/rules/reorder", () => {
+    it("should reorder rules by priority", async () => {
+      const r1 = await api.post("/api/rules", { name: "Rule A", categoryId, conditions: validConditions, priority: 1 });
+      const r2 = await api.post("/api/rules", { name: "Rule B", categoryId, conditions: validConditions, priority: 2 });
+      const r3 = await api.post("/api/rules", { name: "Rule C", categoryId, conditions: validConditions, priority: 3 });
+
+      // Reorder: C first, A second, B third
+      const { status, data } = await api.post("/api/rules/reorder", {
+        ruleIds: [r3.data.data.id, r1.data.data.id, r2.data.data.id],
+      });
+
+      expect(status).toBe(200);
+      expect(data.data[0].name).toBe("Rule C");
+      expect(data.data[1].name).toBe("Rule A");
+      expect(data.data[2].name).toBe("Rule B");
+      // Verify priorities are descending
+      expect(data.data[0].priority).toBeGreaterThan(data.data[1].priority);
+      expect(data.data[1].priority).toBeGreaterThan(data.data[2].priority);
+    });
+
+    it("should return all user rules including non-reordered ones", async () => {
+      const r1 = await api.post("/api/rules", { name: "Reordered", categoryId, conditions: validConditions, priority: 1 });
+      const r2 = await api.post("/api/rules", { name: "Untouched", categoryId, conditions: validConditions, priority: 50 });
+
+      // Only reorder r1
+      const { status, data } = await api.post("/api/rules/reorder", {
+        ruleIds: [r1.data.data.id],
+      });
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(2);
+    });
+
+    it("should reject invalid rule IDs", async () => {
+      const { status, data } = await api.post("/api/rules/reorder", {
+        ruleIds: ["00000000-0000-0000-0000-000000000000"],
+      });
+      expect(status).toBe(400);
+      expect(data.invalidIds).toBeDefined();
+    });
+
+    it("should reject empty ruleIds array", async () => {
+      const { status } = await api.post("/api/rules/reorder", {
+        ruleIds: [],
+      });
+      expect(status).toBe(400);
+    });
+
+    it("should reject another user's rule IDs", async () => {
+      const r1 = await api.post("/api/rules", { name: "My Rule", categoryId, conditions: validConditions });
+
+      const { token: otherToken } = await createTestUserDirect();
+      const otherApi = createApi(otherToken);
+      const { status } = await otherApi.post("/api/rules/reorder", {
+        ruleIds: [r1.data.data.id],
+      });
+      expect(status).toBe(400);
+    });
+
+    it("should require authentication", async () => {
+      const noAuthApi = createApi();
+      const { status } = await noAuthApi.post("/api/rules/reorder", {
+        ruleIds: ["00000000-0000-0000-0000-000000000000"],
+      });
+      expect(status).toBe(401);
+    });
+  });
 });
