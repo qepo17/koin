@@ -57,6 +57,13 @@
       "when": 1771696000000,
       "tag": "0007_add_ai_filter_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1772343239794,
+      "tag": "0008_category-rules",
+      "breakpoints": true
     }
   ]
 }

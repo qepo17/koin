@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, decimal, timestamp, pgEnum, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, decimal, timestamp, pgEnum, index, integer, boolean, jsonb } from "drizzle-orm/pg-core";
 
 export const transactionTypeEnum = pgEnum("transaction_type", ["income", "expense", "adjustment"]);
 
@@ -79,4 +79,21 @@ export const aiCommands = pgTable("ai_commands", {
   result: text("result"), // JSON: execution result or errors
 }, (table) => ({
   userStatusIdx: index("ai_commands_user_status_idx").on(table.userId, table.status),
+}));
+
+// Category rules - automatic categorization based on conditions
+export const categoryRules = pgTable("category_rules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  categoryId: uuid("category_id").references(() => categories.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  conditions: jsonb("conditions").notNull(),
+  priority: integer("priority").notNull().default(0),
+  enabled: boolean("enabled").notNull().default(true),
+  matchCount: integer("match_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  userIdIdx: index("idx_category_rules_user_id").on(table.userId),
+  userPriorityIdx: index("idx_category_rules_priority").on(table.userId, table.priority),
 }));
