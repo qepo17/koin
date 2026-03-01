@@ -67,6 +67,14 @@ export const reorderRulesSchema = z.object({
   ruleIds: z.array(z.string().uuid()).min(1),
 });
 
+export const testRuleSchema = z.object({
+  ruleId: z.string().uuid(),
+  transaction: z.object({
+    description: z.string(),
+    amount: z.number(),
+  }),
+});
+
 export type CreateRule = z.infer<typeof createRuleSchema>;
 export type UpdateRule = z.infer<typeof updateRuleSchema>;
 export type ReorderRules = z.infer<typeof reorderRulesSchema>;
