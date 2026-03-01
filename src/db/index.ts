@@ -24,6 +24,13 @@ export const db = new Proxy({} as PostgresJsDatabase<typeof schema>, {
   },
 });
 
+// Callbacks to run on reset (e.g., service singletons)
+const resetCallbacks: (() => void)[] = [];
+
+export function onDbReset(callback: () => void) {
+  resetCallbacks.push(callback);
+}
+
 // For testing: reset the connection
 export function resetDb() {
   if (client) {
@@ -31,6 +38,7 @@ export function resetDb() {
   }
   client = null;
   _db = null;
+  for (const cb of resetCallbacks) cb();
 }
 
 export * from "./schema";
