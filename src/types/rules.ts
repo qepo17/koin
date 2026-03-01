@@ -63,5 +63,10 @@ export const updateRuleSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
+export const reorderRulesSchema = z.object({
+  ruleIds: z.array(z.string().uuid()).min(1),
+});
+
 export type CreateRule = z.infer<typeof createRuleSchema>;
 export type UpdateRule = z.infer<typeof updateRuleSchema>;
+export type ReorderRules = z.infer<typeof reorderRulesSchema>;

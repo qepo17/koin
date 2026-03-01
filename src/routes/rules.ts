@@ -1,7 +1,8 @@
 import { Hono } from "hono";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { db, categoryRules, categories } from "../db";
-import { createRuleSchema, updateRuleSchema } from "../types/rules";
+import { getDb } from "../db";
+import { createRuleSchema, updateRuleSchema, reorderRulesSchema } from "../types/rules";
 
 const app = new Hono();
 
@@ -22,6 +23,53 @@ app.get("/", async (c) => {
     .from(categoryRules)
     .where(eq(categoryRules.userId, userId))
     .orderBy(desc(categoryRules.priority));
+  return c.json({ data: result });
+});
+
+// Reorder rules
+app.post("/reorder", async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req.json();
+  const parsed = reorderRulesSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues }, 400);
+  }
+
+  const { ruleIds } = parsed.data;
+
+  // Verify all rule IDs belong to the user
+  const existingRules = await db
+    .select({ id: categoryRules.id })
+    .from(categoryRules)
+    .where(and(eq(categoryRules.userId, userId), inArray(categoryRules.id, ruleIds)));
+
+  const existingIds = new Set(existingRules.map((r) => r.id));
+  const invalidIds = ruleIds.filter((id) => !existingIds.has(id));
+
+  if (invalidIds.length > 0) {
+    return c.json({ error: "Some rule IDs not found", invalidIds }, 400);
+  }
+
+  // Update priorities in a transaction: first in array = highest priority
+  const database = getDb();
+  await database.transaction(async (tx) => {
+    for (let i = 0; i < ruleIds.length; i++) {
+      const priority = ruleIds.length - i; // First = highest
+      await tx
+        .update(categoryRules)
+        .set({ priority, updatedAt: new Date() })
+        .where(and(eq(categoryRules.id, ruleIds[i]), eq(categoryRules.userId, userId)));
+    }
+  });
+
+  // Return updated rules sorted by priority
+  const result = await db
+    .select()
+    .from(categoryRules)
+    .where(eq(categoryRules.userId, userId))
+    .orderBy(desc(categoryRules.priority));
+
   return c.json({ data: result });
 });
 
