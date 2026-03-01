@@ -1,9 +1,8 @@
 import { Hono } from "hono";
 import { eq, and, desc, inArray, isNull, sql } from "drizzle-orm";
 import { db, categoryRules, categories, transactions } from "../db";
-import { getDb } from "../db";
 import { createRuleSchema, updateRuleSchema, reorderRulesSchema, testRuleSchema } from "../types/rules";
-import { createRuleMatchingService } from "../services/rule-matching";
+import { getRuleMatchingService } from "../services";
 import type { CategoryRule } from "../types/rules";
 
 const app = new Hono();
@@ -55,8 +54,7 @@ app.post("/test", async (c) => {
     conditions: result[0].conditions as CategoryRule["conditions"],
   };
 
-  const database = getDb();
-  const service = createRuleMatchingService(database);
+  const service = getRuleMatchingService();
   const testResult = service.testRule(rule, transaction);
 
   return c.json({
@@ -92,8 +90,7 @@ app.post("/:id/apply", async (c) => {
     .from(transactions)
     .where(and(eq(transactions.userId, userId), isNull(transactions.categoryId)));
 
-  const database = getDb();
-  const service = createRuleMatchingService(database);
+  const service = getRuleMatchingService();
 
   // Evaluate rule against each transaction
   const matched: typeof uncategorized = [];
@@ -111,7 +108,7 @@ app.post("/:id/apply", async (c) => {
 
   // Apply categorization in a transaction
   const matchedIds = matched.map((t) => t.id);
-  await database.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
     await tx
       .update(transactions)
       .set({
@@ -165,8 +162,7 @@ app.post("/reorder", async (c) => {
   }
 
   // Update priorities in a transaction: first in array = highest priority
-  const database = getDb();
-  await database.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
     for (let i = 0; i < ruleIds.length; i++) {
       const priority = ruleIds.length - i; // First = highest
       await tx

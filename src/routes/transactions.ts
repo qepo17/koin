@@ -1,9 +1,8 @@
 import { Hono } from "hono";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { db, transactions, categoryRules } from "../db";
-import { getDb } from "../db";
 import { createTransactionSchema, updateTransactionSchema } from "../types";
-import { createRuleMatchingService } from "../services/rule-matching";
+import { getRuleMatchingService } from "../services";
 
 const app = new Hono();
 
@@ -60,8 +59,7 @@ app.post("/", async (c) => {
 
   // Auto-categorize if no category provided
   if (!categoryId && parsed.data.description) {
-    const database = getDb();
-    const service = createRuleMatchingService(database);
+    const service = getRuleMatchingService();
     const match = await service.findMatchingRule(userId, {
       description: parsed.data.description,
       amount: Number(parsed.data.amount),
