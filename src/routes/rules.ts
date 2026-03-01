@@ -2,7 +2,9 @@ import { Hono } from "hono";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { db, categoryRules, categories } from "../db";
 import { getDb } from "../db";
-import { createRuleSchema, updateRuleSchema, reorderRulesSchema } from "../types/rules";
+import { createRuleSchema, updateRuleSchema, reorderRulesSchema, testRuleSchema } from "../types/rules";
+import { createRuleMatchingService } from "../services/rule-matching";
+import type { CategoryRule } from "../types/rules";
 
 const app = new Hono();
 
@@ -24,6 +26,44 @@ app.get("/", async (c) => {
     .where(eq(categoryRules.userId, userId))
     .orderBy(desc(categoryRules.priority));
   return c.json({ data: result });
+});
+
+// Test a rule against a transaction (dry-run)
+app.post("/test", async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req.json();
+  const parsed = testRuleSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues }, 400);
+  }
+
+  const { ruleId, transaction } = parsed.data;
+
+  // Fetch the rule (must belong to user)
+  const result = await db
+    .select()
+    .from(categoryRules)
+    .where(and(eq(categoryRules.id, ruleId), eq(categoryRules.userId, userId)));
+
+  if (result.length === 0) {
+    return c.json({ error: "Rule not found" }, 404);
+  }
+
+  const rule: CategoryRule = {
+    ...result[0],
+    conditions: result[0].conditions as CategoryRule["conditions"],
+  };
+
+  const database = getDb();
+  const service = createRuleMatchingService(database);
+  const testResult = service.testRule(rule, transaction);
+
+  return c.json({
+    matches: testResult.matches,
+    rule,
+    conditionResults: testResult.conditionResults,
+  });
 });
 
 // Reorder rules

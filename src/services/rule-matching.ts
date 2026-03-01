@@ -5,9 +5,22 @@ import { categoryRules } from "../db/schema";
 import type { CategoryRule, TransactionInput, Condition, DescriptionCondition, AmountCondition } from "../types/rules";
 import { conditionsSchema } from "../types/rules";
 
+export interface ConditionResult {
+  field: string;
+  operator: string;
+  value: unknown;
+  matched: boolean;
+}
+
+export interface TestRuleResult {
+  matches: boolean;
+  conditionResults: ConditionResult[];
+}
+
 export interface RuleMatchingService {
   findMatchingRule(userId: string, transaction: TransactionInput): Promise<CategoryRule | null>;
   evaluateRule(rule: CategoryRule, transaction: TransactionInput): boolean;
+  testRule(rule: CategoryRule, transaction: TransactionInput): TestRuleResult;
 }
 
 export function createRuleMatchingService(db: PostgresJsDatabase<typeof schema>): RuleMatchingService {
@@ -97,5 +110,34 @@ export function createRuleMatchingService(db: PostgresJsDatabase<typeof schema>)
     return null;
   }
 
-  return { findMatchingRule, evaluateRule };
+  function testRule(rule: CategoryRule, transaction: TransactionInput): TestRuleResult {
+    const parsed = conditionsSchema.safeParse(rule.conditions);
+    if (!parsed.success) {
+      return { matches: false, conditionResults: [] };
+    }
+
+    const conditionResults: ConditionResult[] = parsed.data.map((condition) => {
+      const matched = evaluateCondition(condition, transaction);
+      if (condition.field === "description") {
+        return {
+          field: condition.field,
+          operator: condition.operator,
+          value: condition.value,
+          matched,
+        };
+      }
+      return {
+        field: condition.field,
+        operator: condition.operator,
+        value: condition.operator === "between" ? [condition.value, condition.value2] : condition.value,
+        matched,
+      };
+    });
+
+    const matches = !rule.enabled ? false : conditionResults.every((r) => r.matched);
+
+    return { matches, conditionResults };
+  }
+
+  return { findMatchingRule, evaluateRule, testRule };
 }
