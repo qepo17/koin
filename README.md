@@ -6,14 +6,16 @@ Personal finance tracker built for AI integration.
 
 **1. AI Agent Integration** — Generate a personalized `SKILL.md` from Settings. Drop it in your AI agent's workspace, and it can manage your finances via the API.
 
-**2. AI Commands** — Use natural language to bulk update transactions:
+**2. Auto-Categorization Rules** — Create rules that automatically categorize transactions based on description patterns and amount ranges. New transactions get categorized on creation, and you can retroactively apply rules to existing uncategorized ones.
+
+**3. AI Commands** — Use natural language to bulk update transactions:
 - "Categorize all Starbucks as Food"
 - "Move Netflix and Spotify to Entertainment"
 - "Change last month's miscellaneous to expenses"
 
 Changes are previewed before execution. No surprises.
 
-**3. Simple Finance Tracking** — Income, expenses, categories, dashboard with charts. The basics, done right.
+**4. Simple Finance Tracking** — Income, expenses, categories, dashboard with charts. The basics, done right.
 
 ## Stack
 
