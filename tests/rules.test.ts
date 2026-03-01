@@ -442,18 +442,18 @@ describe("Rules CRUD API", () => {
 
   describe("POST /api/rules/:id/apply", () => {
     it("should apply rule to uncategorized transactions", async () => {
-      // Create rule
+      // Create transactions FIRST (before rule exists, so no auto-categorization)
+      await api.post("/api/transactions", { type: "expense", amount: "25.00", description: "Morning coffee" });
+      await api.post("/api/transactions", { type: "expense", amount: "15.00", description: "Coffee beans" });
+      await api.post("/api/transactions", { type: "expense", amount: "50.00", description: "Groceries" }); // no match
+
+      // Then create the rule
       const rule = await api.post("/api/rules", {
         name: "Coffee Rule",
         categoryId,
         conditions: [{ field: "description", operator: "contains", value: "coffee" }],
       });
       const ruleId = rule.data.data.id;
-
-      // Create uncategorized transactions
-      await api.post("/api/transactions", { type: "expense", amount: "25.00", description: "Morning coffee" });
-      await api.post("/api/transactions", { type: "expense", amount: "15.00", description: "Coffee beans" });
-      await api.post("/api/transactions", { type: "expense", amount: "50.00", description: "Groceries" }); // no match
 
       const { status, data } = await api.post(`/api/rules/${ruleId}/apply`, {});
 
@@ -482,15 +482,17 @@ describe("Rules CRUD API", () => {
     });
 
     it("should increment matchCount on the rule", async () => {
+      // Create transactions first
+      await api.post("/api/transactions", { type: "expense", amount: "25.00", description: "Coffee shop" });
+      await api.post("/api/transactions", { type: "expense", amount: "15.00", description: "Iced coffee" });
+
+      // Then create rule and apply
       const rule = await api.post("/api/rules", {
         name: "Coffee Rule",
         categoryId,
         conditions: [{ field: "description", operator: "contains", value: "coffee" }],
       });
       const ruleId = rule.data.data.id;
-
-      await api.post("/api/transactions", { type: "expense", amount: "25.00", description: "Coffee shop" });
-      await api.post("/api/transactions", { type: "expense", amount: "15.00", description: "Iced coffee" });
 
       await api.post(`/api/rules/${ruleId}/apply`, {});
 
