@@ -64,6 +64,13 @@
       "when": 1772343239794,
       "tag": "0008_category-rules",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1772343677781,
+      "tag": "0009_applied-rule-id",
+      "breakpoints": true
     }
   ]
 }
