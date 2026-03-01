@@ -30,6 +30,7 @@ export const transactions = pgTable("transactions", {
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   description: text("description"),
   categoryId: uuid("category_id").references(() => categories.id),
+  appliedRuleId: uuid("applied_rule_id").references(() => categoryRules.id, { onDelete: "set null" }),
   date: timestamp("date").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
