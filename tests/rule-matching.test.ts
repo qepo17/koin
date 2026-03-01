@@ -256,9 +256,9 @@ describe("Rule Matching Service", () => {
           userId,
           categoryId,
           name: "Coffee Rule",
-          conditions: JSON.stringify([
+          conditions: [
             { field: "description", operator: "contains", value: "coffee", negate: false, caseSensitive: false },
-          ]),
+          ],
           priority: 10,
           enabled: true,
         },
@@ -266,9 +266,9 @@ describe("Rule Matching Service", () => {
           userId,
           categoryId: categoryId2,
           name: "Uber Rule",
-          conditions: JSON.stringify([
+          conditions: [
             { field: "description", operator: "startsWith", value: "uber", negate: false, caseSensitive: false },
-          ]),
+          ],
           priority: 20,
           enabled: true,
         },
@@ -276,9 +276,9 @@ describe("Rule Matching Service", () => {
           userId,
           categoryId,
           name: "Disabled Rule",
-          conditions: JSON.stringify([
+          conditions: [
             { field: "description", operator: "contains", value: "disabled", negate: false, caseSensitive: false },
-          ]),
+          ],
           priority: 100,
           enabled: false,
         },
@@ -286,10 +286,10 @@ describe("Rule Matching Service", () => {
           userId,
           categoryId,
           name: "Expensive Coffee Rule",
-          conditions: JSON.stringify([
+          conditions: [
             { field: "description", operator: "contains", value: "coffee", negate: false, caseSensitive: false },
             { field: "amount", operator: "gt", value: 50 },
-          ]),
+          ],
           priority: 30, // Higher priority than plain coffee
           enabled: true,
         },
