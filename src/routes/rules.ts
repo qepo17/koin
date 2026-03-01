@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { eq, and, desc, inArray } from "drizzle-orm";
-import { db, categoryRules, categories } from "../db";
+import { eq, and, desc, inArray, isNull, sql } from "drizzle-orm";
+import { db, categoryRules, categories, transactions } from "../db";
 import { getDb } from "../db";
 import { createRuleSchema, updateRuleSchema, reorderRulesSchema, testRuleSchema } from "../types/rules";
 import { createRuleMatchingService } from "../services/rule-matching";
@@ -64,6 +64,79 @@ app.post("/test", async (c) => {
     rule,
     conditionResults: testResult.conditionResults,
   });
+});
+
+// Apply rule to existing uncategorized transactions
+app.post("/:id/apply", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+
+  // Fetch the rule (must belong to user)
+  const ruleResult = await db
+    .select()
+    .from(categoryRules)
+    .where(and(eq(categoryRules.id, id), eq(categoryRules.userId, userId)));
+
+  if (ruleResult.length === 0) {
+    return c.json({ error: "Rule not found" }, 404);
+  }
+
+  const rule: CategoryRule = {
+    ...ruleResult[0],
+    conditions: ruleResult[0].conditions as CategoryRule["conditions"],
+  };
+
+  // Fetch all uncategorized transactions for this user
+  const uncategorized = await db
+    .select()
+    .from(transactions)
+    .where(and(eq(transactions.userId, userId), isNull(transactions.categoryId)));
+
+  const database = getDb();
+  const service = createRuleMatchingService(database);
+
+  // Evaluate rule against each transaction
+  const matched: typeof uncategorized = [];
+  for (const tx of uncategorized) {
+    if (tx.description === null) continue;
+    const input = { description: tx.description, amount: Number(tx.amount) };
+    if (service.evaluateRule(rule, input)) {
+      matched.push(tx);
+    }
+  }
+
+  if (matched.length === 0) {
+    return c.json({ applied: 0, transactions: [] });
+  }
+
+  // Apply categorization in a transaction
+  const matchedIds = matched.map((t) => t.id);
+  await database.transaction(async (tx) => {
+    await tx
+      .update(transactions)
+      .set({
+        categoryId: rule.categoryId,
+        appliedRuleId: rule.id,
+        updatedAt: new Date(),
+      })
+      .where(inArray(transactions.id, matchedIds));
+
+    await tx
+      .update(categoryRules)
+      .set({
+        matchCount: sql`${categoryRules.matchCount} + ${matched.length}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(categoryRules.id, rule.id));
+  });
+
+  // Fetch updated transactions to return
+  const updated = await db
+    .select()
+    .from(transactions)
+    .where(inArray(transactions.id, matchedIds));
+
+  return c.json({ applied: matched.length, transactions: updated });
 });
 
 // Reorder rules

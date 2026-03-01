@@ -440,6 +440,89 @@ describe("Rules CRUD API", () => {
     });
   });
 
+  describe("POST /api/rules/:id/apply", () => {
+    it("should apply rule to uncategorized transactions", async () => {
+      // Create rule
+      const rule = await api.post("/api/rules", {
+        name: "Coffee Rule",
+        categoryId,
+        conditions: [{ field: "description", operator: "contains", value: "coffee" }],
+      });
+      const ruleId = rule.data.data.id;
+
+      // Create uncategorized transactions
+      await api.post("/api/transactions", { type: "expense", amount: "25.00", description: "Morning coffee" });
+      await api.post("/api/transactions", { type: "expense", amount: "15.00", description: "Coffee beans" });
+      await api.post("/api/transactions", { type: "expense", amount: "50.00", description: "Groceries" }); // no match
+
+      const { status, data } = await api.post(`/api/rules/${ruleId}/apply`, {});
+
+      expect(status).toBe(200);
+      expect(data.applied).toBe(2);
+      expect(data.transactions).toHaveLength(2);
+      expect(data.transactions.every((t: any) => t.categoryId === categoryId)).toBe(true);
+      expect(data.transactions.every((t: any) => t.appliedRuleId === ruleId)).toBe(true);
+    });
+
+    it("should not affect already categorized transactions", async () => {
+      const rule = await api.post("/api/rules", {
+        name: "Coffee Rule",
+        categoryId,
+        conditions: [{ field: "description", operator: "contains", value: "coffee" }],
+      });
+      const ruleId = rule.data.data.id;
+
+      // Create a categorized transaction
+      await api.post("/api/transactions", { type: "expense", amount: "25.00", description: "Coffee", categoryId: categoryId2 });
+
+      const { status, data } = await api.post(`/api/rules/${ruleId}/apply`, {});
+      expect(status).toBe(200);
+      expect(data.applied).toBe(0);
+      expect(data.transactions).toHaveLength(0);
+    });
+
+    it("should increment matchCount on the rule", async () => {
+      const rule = await api.post("/api/rules", {
+        name: "Coffee Rule",
+        categoryId,
+        conditions: [{ field: "description", operator: "contains", value: "coffee" }],
+      });
+      const ruleId = rule.data.data.id;
+
+      await api.post("/api/transactions", { type: "expense", amount: "25.00", description: "Coffee shop" });
+      await api.post("/api/transactions", { type: "expense", amount: "15.00", description: "Iced coffee" });
+
+      await api.post(`/api/rules/${ruleId}/apply`, {});
+
+      const { data } = await api.get(`/api/rules/${ruleId}`);
+      expect(data.data.matchCount).toBe(2);
+    });
+
+    it("should return 404 for non-existent rule", async () => {
+      const { status } = await api.post("/api/rules/00000000-0000-0000-0000-000000000000/apply", {});
+      expect(status).toBe(404);
+    });
+
+    it("should not apply another user's rule", async () => {
+      const rule = await api.post("/api/rules", {
+        name: "My Rule",
+        categoryId,
+        conditions: validConditions,
+      });
+
+      const { token: otherToken } = await createTestUserDirect();
+      const otherApi = createApi(otherToken);
+      const { status } = await otherApi.post(`/api/rules/${rule.data.data.id}/apply`, {});
+      expect(status).toBe(404);
+    });
+
+    it("should require authentication", async () => {
+      const noAuthApi = createApi();
+      const { status } = await noAuthApi.post("/api/rules/00000000-0000-0000-0000-000000000000/apply", {});
+      expect(status).toBe(401);
+    });
+  });
+
   describe("POST /api/rules/reorder", () => {
     it("should reorder rules by priority", async () => {
       const r1 = await api.post("/api/rules", { name: "Rule A", categoryId, conditions: validConditions, priority: 1 });
