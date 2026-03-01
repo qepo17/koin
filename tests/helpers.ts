@@ -44,6 +44,7 @@ export function createApi(token?: string) {
   return {
     get: (path: string) => request(path, { method: "GET", token }),
     post: (path: string, body: unknown) => request(path, { method: "POST", body, token }),
+    put: (path: string, body: unknown) => request(path, { method: "PUT", body, token }),
     patch: (path: string, body: unknown) => request(path, { method: "PATCH", body, token }),
     delete: (path: string) => request(path, { method: "DELETE", token }),
   };

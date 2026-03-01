@@ -4,6 +4,7 @@ import type { CategoryRule, TransactionInput } from "../src/types/rules";
 import { getDb, resetDb } from "../src/db";
 import { users, categories, categoryRules } from "../src/db/schema";
 import { eq } from "drizzle-orm";
+import { setupTestDb, teardownTestDb } from "./setup";
 
 // Helper to create a rule object for unit tests (no DB needed)
 function makeRule(overrides: Partial<CategoryRule> = {}): CategoryRule {
@@ -27,16 +28,16 @@ const tx = (description: string, amount: number): TransactionInput => ({ descrip
 describe("Rule Matching Service", () => {
   // Unit tests - no DB needed, just test evaluateRule
   describe("evaluateRule", () => {
-    // We need a DB instance to create the service, but evaluateRule doesn't use it
     let service: RuleMatchingService;
 
-    beforeAll(() => {
+    beforeAll(async () => {
+      await setupTestDb();
       const db = getDb();
       service = createRuleMatchingService(db);
     });
 
-    afterAll(() => {
-      resetDb();
+    afterAll(async () => {
+      await teardownTestDb();
     });
 
     describe("description conditions", () => {
@@ -226,6 +227,7 @@ describe("Rule Matching Service", () => {
     let categoryId2: string;
 
     beforeAll(async () => {
+      await setupTestDb();
       const db = getDb();
       service = createRuleMatchingService(db);
 
@@ -256,9 +258,9 @@ describe("Rule Matching Service", () => {
           userId,
           categoryId,
           name: "Coffee Rule",
-          conditions: JSON.stringify([
+          conditions: [
             { field: "description", operator: "contains", value: "coffee", negate: false, caseSensitive: false },
-          ]),
+          ],
           priority: 10,
           enabled: true,
         },
@@ -266,9 +268,9 @@ describe("Rule Matching Service", () => {
           userId,
           categoryId: categoryId2,
           name: "Uber Rule",
-          conditions: JSON.stringify([
+          conditions: [
             { field: "description", operator: "startsWith", value: "uber", negate: false, caseSensitive: false },
-          ]),
+          ],
           priority: 20,
           enabled: true,
         },
@@ -276,9 +278,9 @@ describe("Rule Matching Service", () => {
           userId,
           categoryId,
           name: "Disabled Rule",
-          conditions: JSON.stringify([
+          conditions: [
             { field: "description", operator: "contains", value: "disabled", negate: false, caseSensitive: false },
-          ]),
+          ],
           priority: 100,
           enabled: false,
         },
@@ -286,10 +288,10 @@ describe("Rule Matching Service", () => {
           userId,
           categoryId,
           name: "Expensive Coffee Rule",
-          conditions: JSON.stringify([
+          conditions: [
             { field: "description", operator: "contains", value: "coffee", negate: false, caseSensitive: false },
             { field: "amount", operator: "gt", value: 50 },
-          ]),
+          ],
           priority: 30, // Higher priority than plain coffee
           enabled: true,
         },
@@ -301,7 +303,7 @@ describe("Rule Matching Service", () => {
       await db.delete(categoryRules).where(eq(categoryRules.userId, userId));
       await db.delete(categories).where(eq(categories.userId, userId));
       await db.delete(users).where(eq(users.id, userId));
-      resetDb();
+      await teardownTestDb();
     });
 
     test("returns matching rule", async () => {

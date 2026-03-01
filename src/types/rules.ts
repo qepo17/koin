@@ -45,3 +45,23 @@ export interface TransactionInput {
   description: string;
   amount: number;
 }
+
+// CRUD schemas
+export const createRuleSchema = z.object({
+  name: z.string().min(1).max(255),
+  categoryId: z.string().uuid(),
+  conditions: conditionsSchema,
+  priority: z.number().int().optional().default(0),
+  enabled: z.boolean().optional().default(true),
+});
+
+export const updateRuleSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  categoryId: z.string().uuid().optional(),
+  conditions: conditionsSchema.optional(),
+  priority: z.number().int().optional(),
+  enabled: z.boolean().optional(),
+});
+
+export type CreateRule = z.infer<typeof createRuleSchema>;
+export type UpdateRule = z.infer<typeof updateRuleSchema>;
