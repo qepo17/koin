@@ -1,7 +1,9 @@
 import { Hono } from "hono";
-import { eq, desc, and, gte, lte } from "drizzle-orm";
-import { db, transactions } from "../db";
+import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
+import { db, transactions, categoryRules } from "../db";
+import { getDb } from "../db";
 import { createTransactionSchema, updateTransactionSchema } from "../types";
+import { createRuleMatchingService } from "../services/rule-matching";
 
 const app = new Hono();
 
@@ -53,9 +55,38 @@ app.post("/", async (c) => {
     return c.json({ error: parsed.error.issues }, 400);
   }
   
+  let categoryId = parsed.data.categoryId;
+  let appliedRuleId: string | undefined;
+
+  // Auto-categorize if no category provided
+  if (!categoryId && parsed.data.description) {
+    const database = getDb();
+    const service = createRuleMatchingService(database);
+    const match = await service.findMatchingRule(userId, {
+      description: parsed.data.description,
+      amount: Number(parsed.data.amount),
+    });
+
+    if (match) {
+      categoryId = match.categoryId;
+      appliedRuleId = match.id;
+
+      // Increment matchCount atomically
+      await db
+        .update(categoryRules)
+        .set({
+          matchCount: sql`${categoryRules.matchCount} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(categoryRules.id, match.id));
+    }
+  }
+
   const result = await db.insert(transactions).values({
     ...parsed.data,
     userId,
+    categoryId,
+    appliedRuleId,
     date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
   }).returning();
   

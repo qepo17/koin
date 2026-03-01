@@ -102,6 +102,90 @@ describe("Transactions API", () => {
       expect(data.data.categoryId).toBe(categoryId);
     });
 
+    it("should auto-categorize when rule matches and no category provided", async () => {
+      // Create category and rule
+      const cat = await api.post("/api/categories", { name: "Transport" });
+      const categoryId = cat.data.data.id;
+
+      await api.post("/api/rules", {
+        name: "Grab Rule",
+        categoryId,
+        conditions: [{ field: "description", operator: "contains", value: "grab" }],
+      });
+
+      // Create transaction without category
+      const { status, data } = await api.post("/api/transactions", {
+        type: "expense",
+        amount: "50000",
+        description: "GRAB TRANSPORT",
+      });
+
+      expect(status).toBe(201);
+      expect(data.data.categoryId).toBe(categoryId);
+      expect(data.data.appliedRuleId).toBeDefined();
+    });
+
+    it("should not auto-categorize when category is provided", async () => {
+      // Create two categories
+      const cat1 = await api.post("/api/categories", { name: "Transport" });
+      const cat2 = await api.post("/api/categories", { name: "Food" });
+
+      await api.post("/api/rules", {
+        name: "Grab Rule",
+        categoryId: cat1.data.data.id,
+        conditions: [{ field: "description", operator: "contains", value: "grab" }],
+      });
+
+      // Create transaction WITH explicit category
+      const { status, data } = await api.post("/api/transactions", {
+        type: "expense",
+        amount: "50000",
+        description: "GRAB TRANSPORT",
+        categoryId: cat2.data.data.id,
+      });
+
+      expect(status).toBe(201);
+      expect(data.data.categoryId).toBe(cat2.data.data.id);
+      expect(data.data.appliedRuleId).toBeNull();
+    });
+
+    it("should not auto-categorize when no rule matches", async () => {
+      const cat = await api.post("/api/categories", { name: "Transport" });
+
+      await api.post("/api/rules", {
+        name: "Grab Rule",
+        categoryId: cat.data.data.id,
+        conditions: [{ field: "description", operator: "contains", value: "grab" }],
+      });
+
+      const { status, data } = await api.post("/api/transactions", {
+        type: "expense",
+        amount: "25000",
+        description: "Coffee shop",
+      });
+
+      expect(status).toBe(201);
+      expect(data.data.categoryId).toBeNull();
+      expect(data.data.appliedRuleId).toBeNull();
+    });
+
+    it("should increment matchCount when auto-categorizing", async () => {
+      const cat = await api.post("/api/categories", { name: "Transport" });
+      const rule = await api.post("/api/rules", {
+        name: "Grab Rule",
+        categoryId: cat.data.data.id,
+        conditions: [{ field: "description", operator: "contains", value: "grab" }],
+      });
+      const ruleId = rule.data.data.id;
+
+      // Create two matching transactions
+      await api.post("/api/transactions", { type: "expense", amount: "50000", description: "Grab ride" });
+      await api.post("/api/transactions", { type: "expense", amount: "30000", description: "Grab food" });
+
+      const { data } = await api.get(`/api/rules/${ruleId}`);
+      expect(data.data.matchCount).toBe(2);
+    });
+
     it("should reject invalid transaction type", async () => {
       const { status, data } = await api.post("/api/transactions", {
         type: "invalid",
