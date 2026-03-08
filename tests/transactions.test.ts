@@ -217,6 +217,176 @@ describe("Transactions API", () => {
     });
   });
 
+  describe("Duplicate transaction protection", () => {
+    it("should update category instead of inserting when same amount+type+description+date", async () => {
+      // Create two categories
+      const cat1 = await api.post("/api/categories", { name: "Food" });
+      const cat2 = await api.post("/api/categories", { name: "Groceries" });
+      const cat1Id = cat1.data.data.id;
+      const cat2Id = cat2.data.data.id;
+
+      const txDate = "2026-03-08T12:00:00.000Z";
+
+      // First insert
+      const first = await api.post("/api/transactions", {
+        type: "expense",
+        amount: "50000",
+        description: "Belanja bulanan",
+        categoryId: cat1Id,
+        date: txDate,
+      });
+      expect(first.status).toBe(201);
+
+      // Second insert — same amount, type, description, date but different category
+      const second = await api.post("/api/transactions", {
+        type: "expense",
+        amount: "50000",
+        description: "Belanja bulanan",
+        categoryId: cat2Id,
+        date: txDate,
+      });
+
+      // Should be 200 (updated), not 201 (created)
+      expect(second.status).toBe(200);
+      expect(second.data.data.id).toBe(first.data.data.id);
+      expect(second.data.data.categoryId).toBe(cat2Id);
+
+      // Should still only have 1 transaction
+      const list = await api.get("/api/transactions");
+      expect(list.data.data).toHaveLength(1);
+    });
+
+    it("should insert new transaction when amount differs", async () => {
+      const txDate = "2026-03-08T12:00:00.000Z";
+
+      await api.post("/api/transactions", {
+        type: "expense",
+        amount: "50000",
+        description: "Coffee",
+        date: txDate,
+      });
+
+      const second = await api.post("/api/transactions", {
+        type: "expense",
+        amount: "75000",
+        description: "Coffee",
+        date: txDate,
+      });
+
+      expect(second.status).toBe(201);
+
+      const list = await api.get("/api/transactions");
+      expect(list.data.data).toHaveLength(2);
+    });
+
+    it("should insert new transaction when description differs", async () => {
+      const txDate = "2026-03-08T12:00:00.000Z";
+
+      await api.post("/api/transactions", {
+        type: "expense",
+        amount: "50000",
+        description: "Coffee",
+        date: txDate,
+      });
+
+      const second = await api.post("/api/transactions", {
+        type: "expense",
+        amount: "50000",
+        description: "Tea",
+        date: txDate,
+      });
+
+      expect(second.status).toBe(201);
+
+      const list = await api.get("/api/transactions");
+      expect(list.data.data).toHaveLength(2);
+    });
+
+    it("should insert new transaction when type differs", async () => {
+      const txDate = "2026-03-08T12:00:00.000Z";
+
+      await api.post("/api/transactions", {
+        type: "expense",
+        amount: "50000",
+        description: "Transfer",
+        date: txDate,
+      });
+
+      const second = await api.post("/api/transactions", {
+        type: "income",
+        amount: "50000",
+        description: "Transfer",
+        date: txDate,
+      });
+
+      expect(second.status).toBe(201);
+
+      const list = await api.get("/api/transactions");
+      expect(list.data.data).toHaveLength(2);
+    });
+
+    it("should insert new transaction when date is on a different day", async () => {
+      await api.post("/api/transactions", {
+        type: "expense",
+        amount: "50000",
+        description: "Coffee",
+        date: "2026-03-08T12:00:00.000Z",
+      });
+
+      const second = await api.post("/api/transactions", {
+        type: "expense",
+        amount: "50000",
+        description: "Coffee",
+        date: "2026-03-09T12:00:00.000Z",
+      });
+
+      expect(second.status).toBe(201);
+
+      const list = await api.get("/api/transactions");
+      expect(list.data.data).toHaveLength(2);
+    });
+
+    it("should treat same-day different-time as duplicate", async () => {
+      await api.post("/api/transactions", {
+        type: "expense",
+        amount: "50000",
+        description: "Coffee",
+        date: "2026-03-08T08:00:00.000Z",
+      });
+
+      const second = await api.post("/api/transactions", {
+        type: "expense",
+        amount: "50000",
+        description: "Coffee",
+        date: "2026-03-08T20:00:00.000Z",
+      });
+
+      expect(second.status).toBe(200);
+
+      const list = await api.get("/api/transactions");
+      expect(list.data.data).toHaveLength(1);
+    });
+
+    it("should handle null descriptions as matching", async () => {
+      await api.post("/api/transactions", {
+        type: "expense",
+        amount: "25.00",
+        date: "2026-03-08T12:00:00.000Z",
+      });
+
+      const second = await api.post("/api/transactions", {
+        type: "expense",
+        amount: "25.00",
+        date: "2026-03-08T12:00:00.000Z",
+      });
+
+      expect(second.status).toBe(200);
+
+      const list = await api.get("/api/transactions");
+      expect(list.data.data).toHaveLength(1);
+    });
+  });
+
   describe("GET /api/transactions", () => {
     it("should list all transactions for the user", async () => {
       // Create some transactions
