@@ -3,6 +3,8 @@ import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { db, transactions, categoryRules } from "../db";
 import { createTransactionSchema, updateTransactionSchema } from "../types";
 import { getRuleMatchingService } from "../services";
+import { upsertTransaction } from "../services/transaction-upsert";
+import { getDb } from "../db";
 
 const app = new Hono();
 
@@ -80,15 +82,17 @@ app.post("/", async (c) => {
     }
   }
 
-  const result = await db.insert(transactions).values({
-    ...parsed.data,
+  const { data: result, upserted } = await upsertTransaction(getDb(), {
     userId,
+    type: parsed.data.type,
+    amount: parsed.data.amount,
+    description: parsed.data.description,
     categoryId,
     appliedRuleId,
     date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
-  }).returning();
+  });
   
-  return c.json({ data: result[0] }, 201);
+  return c.json({ data: result }, upserted ? 200 : 201);
 });
 
 // Update transaction (scoped to user)
