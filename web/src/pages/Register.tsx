@@ -108,9 +108,12 @@ export function RegisterPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               placeholder="••••••••"
             />
-            <p className="mt-1 text-xs text-gray-500">
-              Must be at least 8 characters
-            </p>
+            <ul className="mt-1 text-xs text-gray-500 list-disc list-inside space-y-0.5">
+              <li>Minimum 8 characters</li>
+              <li>At least one uppercase letter</li>
+              <li>At least one lowercase letter</li>
+              <li>At least one number</li>
+            </ul>
           </div>
 
           <button
