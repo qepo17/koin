@@ -24,6 +24,9 @@ describe("RegisterPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/at least 8 characters/i)).toBeInTheDocument();
+      expect(screen.getByText(/at least one uppercase letter/i)).toBeInTheDocument();
+      expect(screen.getByText(/at least one lowercase letter/i)).toBeInTheDocument();
+      expect(screen.getByText(/at least one number/i)).toBeInTheDocument();
     });
   });
 
@@ -37,7 +40,7 @@ describe("RegisterPage", () => {
 
     await user.type(screen.getByPlaceholderText(/john doe/i), "New User");
     await user.type(screen.getByPlaceholderText(/you@example.com/i), "new@example.com");
-    await user.type(screen.getByPlaceholderText("••••••••"), "password123");
+    await user.type(screen.getByPlaceholderText("••••••••"), "Password123");
     
     const button = screen.getByRole("button", { name: /create account/i });
     expect(button).not.toBeDisabled();

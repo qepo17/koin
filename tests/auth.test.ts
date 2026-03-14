@@ -42,7 +42,7 @@ describe("Auth API", () => {
     it("should reject invalid email", async () => {
       const { status, data } = await api.post("/api/auth/register", {
         email: "invalid-email",
-        password: "password123",
+        password: "Password123",
       });
 
       expect(status).toBe(400);
@@ -52,7 +52,37 @@ describe("Auth API", () => {
     it("should reject short password", async () => {
       const { status, data } = await api.post("/api/auth/register", {
         email: "test@example.com",
-        password: "short",
+        password: "Short1",
+      });
+
+      expect(status).toBe(400);
+      expect(data.error).toBeDefined();
+    });
+
+    it("should reject password without uppercase letter", async () => {
+      const { status, data } = await api.post("/api/auth/register", {
+        email: "test@example.com",
+        password: "password123",
+      });
+
+      expect(status).toBe(400);
+      expect(data.error).toBeDefined();
+    });
+
+    it("should reject password without lowercase letter", async () => {
+      const { status, data } = await api.post("/api/auth/register", {
+        email: "test@example.com",
+        password: "PASSWORD123",
+      });
+
+      expect(status).toBe(400);
+      expect(data.error).toBeDefined();
+    });
+
+    it("should reject password without number", async () => {
+      const { status, data } = await api.post("/api/auth/register", {
+        email: "test@example.com",
+        password: "Passwordabc",
       });
 
       expect(status).toBe(400);
@@ -62,7 +92,7 @@ describe("Auth API", () => {
     it("should normalize email to lowercase", async () => {
       const { status, data } = await api.post("/api/auth/register", {
         email: "TEST@EXAMPLE.COM",
-        password: "password123",
+        password: "Password123",
       });
 
       expect(status).toBe(201);
