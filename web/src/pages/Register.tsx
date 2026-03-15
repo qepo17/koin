@@ -108,9 +108,15 @@ export function RegisterPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               placeholder="••••••••"
             />
-            <p className="mt-1 text-xs text-gray-500">
-              Must be at least 8 characters
-            </p>
+            <div className="mt-1 text-xs text-gray-500">
+              <p>Password must:</p>
+              <ul className="list-disc list-inside ml-1 mt-0.5 space-y-0.5">
+                <li>Be at least 8 characters</li>
+                <li>Contain an uppercase letter (A-Z)</li>
+                <li>Contain a lowercase letter (a-z)</li>
+                <li>Contain a number (0-9)</li>
+              </ul>
+            </div>
           </div>
 
           <button

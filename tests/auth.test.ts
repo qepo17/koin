@@ -42,7 +42,7 @@ describe("Auth API", () => {
     it("should reject invalid email", async () => {
       const { status, data } = await api.post("/api/auth/register", {
         email: "invalid-email",
-        password: "password123",
+        password: "Password123",
       });
 
       expect(status).toBe(400);
@@ -62,7 +62,7 @@ describe("Auth API", () => {
     it("should normalize email to lowercase", async () => {
       const { status, data } = await api.post("/api/auth/register", {
         email: "TEST@EXAMPLE.COM",
-        password: "password123",
+        password: "Password123",
       });
 
       expect(status).toBe(201);
@@ -88,7 +88,7 @@ describe("Auth API", () => {
     it("should reject invalid email", async () => {
       const { status, data } = await api.post("/api/auth/login", {
         email: "nonexistent@example.com",
-        password: "password123",
+        password: "Password123",
       });
 
       expect(status).toBe(401);

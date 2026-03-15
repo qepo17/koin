@@ -91,7 +91,7 @@ export function generateTestUser() {
   testUserCounter++;
   return {
     email: `test${testUserCounter}@example.com`,
-    password: "password123",
+    password: "Password123",
     name: `Test User ${testUserCounter}`,
   };
 }
