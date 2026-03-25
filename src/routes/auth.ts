@@ -1,16 +1,22 @@
 import { Hono } from "hono";
-import { eq, count, sql } from "drizzle-orm";
+import { eq, count, sql, and, isNull, gt } from "drizzle-orm";
 import { rateLimiter } from "hono-rate-limiter";
-import { db, users } from "../db";
+import { db, users, refreshTokens } from "../db";
 import { registerSchema, loginSchema } from "../types";
 import {
   hashPassword,
   verifyPassword,
   createToken,
   setAuthCookie,
+  setRefreshCookie,
   clearAuthCookie,
+  clearRefreshCookie,
   getTokenFromRequest,
+  getRefreshTokenFromRequest,
   verifyToken,
+  generateRefreshToken,
+  hashRefreshToken,
+  REFRESH_TOKEN_EXPIRES_IN,
 } from "../lib/auth";
 
 const app = new Hono();
@@ -26,6 +32,35 @@ const authRateLimiter = process.env.NODE_ENV === "test"
       keyGenerator: (c) => c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown",
       message: { error: "Too many requests, please try again later" },
     });
+
+// Helper: create refresh token and store in DB
+async function createAndStoreRefreshToken(userId: string, family?: string): Promise<string> {
+  const rawToken = generateRefreshToken();
+  const tokenHash = await hashRefreshToken(rawToken);
+  const tokenFamily = family || crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_IN * 1000);
+
+  await db.insert(refreshTokens).values({
+    userId,
+    tokenHash,
+    expiresAt,
+    family: tokenFamily,
+  });
+
+  // Encode family into the token: family:rawToken
+  return `${tokenFamily}:${rawToken}`;
+}
+
+// Helper: issue both tokens and set cookies
+async function issueTokens(c: any, userId: string, email: string, family?: string) {
+  const accessToken = await createToken(userId, email);
+  const refreshToken = await createAndStoreRefreshToken(userId, family);
+
+  setAuthCookie(c, accessToken);
+  setRefreshCookie(c, refreshToken);
+
+  return { accessToken, refreshToken };
+}
 
 app.get("/setup-status", authRateLimiter, async (c) => {
   const [{ value }] = await db.select({ value: count() }).from(users);
@@ -66,8 +101,7 @@ app.post("/register", authRateLimiter, async (c) => {
     return c.json({ error: "Registration is closed" }, 403);
   }
 
-  const token = await createToken(result.id, result.email);
-  setAuthCookie(c, token);
+  const { accessToken: token } = await issueTokens(c, result.id, result.email);
 
   return c.json({ data: { user: result, token } }, 201);
 });
@@ -99,9 +133,8 @@ app.post("/login", authRateLimiter, async (c) => {
     return c.json({ error: "Invalid email or password" }, 401);
   }
 
-  // Create token and set cookie
-  const token = await createToken(user.id, user.email);
-  setAuthCookie(c, token);
+  // Create tokens and set cookies
+  const { accessToken: token } = await issueTokens(c, user.id, user.email);
 
   return c.json({
     data: {
@@ -117,9 +150,134 @@ app.post("/login", authRateLimiter, async (c) => {
   });
 });
 
+// Refresh token endpoint
+app.post("/refresh", authRateLimiter, async (c) => {
+  // Get refresh token from cookie or request body
+  let rawRefreshToken = getRefreshTokenFromRequest(c);
+
+  if (!rawRefreshToken) {
+    try {
+      const body = await c.req.json();
+      rawRefreshToken = body.refreshToken || null;
+    } catch {
+      // No body, that's fine
+    }
+  }
+
+  if (!rawRefreshToken) {
+    return c.json({ error: "Refresh token required" }, 401);
+  }
+
+  // Parse family:token format
+  const colonIndex = rawRefreshToken.indexOf(":");
+  if (colonIndex === -1) {
+    return c.json({ error: "Invalid refresh token format" }, 401);
+  }
+
+  const family = rawRefreshToken.slice(0, colonIndex);
+  const tokenValue = rawRefreshToken.slice(colonIndex + 1);
+  const tokenHash = await hashRefreshToken(tokenValue);
+
+  // Look up the refresh token
+  const now = new Date();
+  const [storedToken] = await db
+    .select()
+    .from(refreshTokens)
+    .where(
+      and(
+        eq(refreshTokens.tokenHash, tokenHash),
+        eq(refreshTokens.family, family)
+      )
+    );
+
+  if (!storedToken) {
+    // Token not found — possible reuse attack. Revoke entire family.
+    await db
+      .update(refreshTokens)
+      .set({ revokedAt: now })
+      .where(
+        and(
+          eq(refreshTokens.family, family),
+          isNull(refreshTokens.revokedAt)
+        )
+      );
+    clearAuthCookie(c);
+    clearRefreshCookie(c);
+    return c.json({ error: "Invalid refresh token — all sessions in this family have been revoked" }, 401);
+  }
+
+  // Check if token was already revoked (reuse detection)
+  if (storedToken.revokedAt) {
+    // Revoke entire family — potential token theft
+    await db
+      .update(refreshTokens)
+      .set({ revokedAt: now })
+      .where(
+        and(
+          eq(refreshTokens.family, family),
+          isNull(refreshTokens.revokedAt)
+        )
+      );
+    clearAuthCookie(c);
+    clearRefreshCookie(c);
+    return c.json({ error: "Refresh token reuse detected — all sessions in this family have been revoked" }, 401);
+  }
+
+  // Check expiration
+  if (storedToken.expiresAt < now) {
+    return c.json({ error: "Refresh token expired" }, 401);
+  }
+
+  // Revoke the current refresh token (rotation)
+  await db
+    .update(refreshTokens)
+    .set({ revokedAt: now })
+    .where(eq(refreshTokens.id, storedToken.id));
+
+  // Look up user
+  const [user] = await db
+    .select({ id: users.id, email: users.email })
+    .from(users)
+    .where(eq(users.id, storedToken.userId));
+
+  if (!user) {
+    return c.json({ error: "User not found" }, 401);
+  }
+
+  // Issue new token pair with same family
+  const { accessToken: token } = await issueTokens(c, user.id, user.email, family);
+
+  return c.json({
+    data: {
+      token,
+      message: "Tokens refreshed successfully",
+    },
+  });
+});
+
 // Logout
 app.post("/logout", async (c) => {
+  // Revoke refresh token if present
+  const rawRefreshToken = getRefreshTokenFromRequest(c);
+  if (rawRefreshToken) {
+    const colonIndex = rawRefreshToken.indexOf(":");
+    if (colonIndex !== -1) {
+      const family = rawRefreshToken.slice(0, colonIndex);
+      // Revoke all tokens in this family
+      await db
+        .update(refreshTokens)
+        .set({ revokedAt: new Date() })
+        .where(
+          and(
+            eq(refreshTokens.family, family),
+            isNull(refreshTokens.revokedAt)
+          )
+        );
+    }
+  }
+
   clearAuthCookie(c);
+  clearRefreshCookie(c);
   return c.json({ data: { message: "Logged out" } });
 });
 
