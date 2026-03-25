@@ -10,9 +10,39 @@ export class ApiError extends Error {
   }
 }
 
+// Token refresh state to prevent concurrent refresh attempts
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+async function attemptTokenRefresh(): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function refreshToken(): Promise<boolean> {
+  if (isRefreshing && refreshPromise) {
+    return refreshPromise;
+  }
+  isRefreshing = true;
+  refreshPromise = attemptTokenRefresh().finally(() => {
+    isRefreshing = false;
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
+
 async function request<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  _isRetry = false
 ): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -22,6 +52,15 @@ async function request<T>(
     },
     credentials: "include", // Include cookies for auth
   });
+
+  // If we get a 401 and this isn't already a retry, attempt token refresh
+  if (response.status === 401 && !_isRetry && !path.startsWith("/auth/")) {
+    const refreshed = await refreshToken();
+    if (refreshed) {
+      // Retry the original request
+      return request<T>(path, options, true);
+    }
+  }
 
   const data = await response.json();
 

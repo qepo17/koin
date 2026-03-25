@@ -82,6 +82,21 @@ export const aiCommands = pgTable("ai_commands", {
   userStatusIdx: index("ai_commands_user_status_idx").on(table.userId, table.status),
 }));
 
+// Refresh tokens for secure token rotation
+export const refreshTokens = pgTable("refresh_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  revokedAt: timestamp("revoked_at"), // null = active
+  family: uuid("family").notNull(), // token family for rotation detection
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  tokenHashIdx: index("refresh_tokens_token_hash_idx").on(table.tokenHash),
+  userIdIdx: index("refresh_tokens_user_id_idx").on(table.userId),
+  familyIdx: index("refresh_tokens_family_idx").on(table.family),
+}));
+
 // Category rules - automatic categorization based on conditions
 export const categoryRules = pgTable("category_rules", {
   id: uuid("id").primaryKey().defaultRandom(),
