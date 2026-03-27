@@ -64,6 +64,44 @@ export type UpdateCategory = z.infer<typeof updateCategorySchema>;
 export type CreateBudget = z.infer<typeof createBudgetSchema>;
 export type UpdateBudget = z.infer<typeof updateBudgetSchema>;
 
+// Debt account schemas
+export const createDebtAccountSchema = z.object({
+  name: z.string().min(1).max(100),
+  type: z.enum(["credit_card", "loan", "other"]),
+  creditor: z.string().max(100).optional(),
+  creditLimit: z.string().or(z.number()).transform((v) => String(v)).pipe(z.string().refine((v) => Number(v) > 0, "Must be positive")).optional(),
+  billingDay: z.number().int().min(1).max(31),
+  categoryId: z.string().uuid().optional(),
+  autoTrack: z.boolean().optional(),
+  description: z.string().optional(),
+});
+
+export const updateDebtAccountSchema = createDebtAccountSchema.partial();
+
+// Debt schemas
+export const createDebtSchema = z.object({
+  name: z.string().min(1).max(100),
+  type: z.enum(["installment", "revolving", "loan", "other"]),
+  totalAmount: z.string().or(z.number()).transform((v) => String(v)).pipe(z.string().refine((v) => Number(v) > 0, "Must be positive")),
+  monthlyAmount: z.string().or(z.number()).transform((v) => String(v)).pipe(z.string().refine((v) => Number(v) > 0, "Must be positive")),
+  interestRate: z.string().or(z.number()).transform((v) => String(v)).pipe(z.string().refine((v) => Number(v) >= 0 && Number(v) <= 100, "Must be 0-100")).optional(),
+  installmentMonths: z.number().int().min(1).optional(),
+  installmentStart: z.string().datetime().optional(),
+  description: z.string().optional(),
+});
+
+export const updateDebtSchema = createDebtSchema.partial();
+
+// Debt billing check schema
+export const checkBillingSchema = z.object({
+  date: z.string().datetime(),
+});
+
+export type CreateDebtAccount = z.infer<typeof createDebtAccountSchema>;
+export type UpdateDebtAccount = z.infer<typeof updateDebtAccountSchema>;
+export type CreateDebt = z.infer<typeof createDebtSchema>;
+export type UpdateDebt = z.infer<typeof updateDebtSchema>;
+
 // Settings schemas
 export const updateSettingsSchema = z.object({
   currency: z.string().length(3).toUpperCase().optional(),
