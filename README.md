@@ -26,8 +26,11 @@ Changes are previewed before execution. No surprises.
 ## Quick Start
 
 ```bash
-# With Docker
+# With Docker (recommended)
 docker compose up
+
+# Development setup (if you need to run migrations separately)
+./scripts/setup-dev-db.sh
 docker compose exec api bun run db:migrate
 
 # Without Docker
