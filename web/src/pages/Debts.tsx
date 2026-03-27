@@ -6,7 +6,6 @@ import {
   debtSummary,
   categories as categoriesApi,
   type DebtAccountWithTotals,
-  type DebtAccount,
   type Debt,
   type CreateDebtAccount,
   type CreateDebt,
