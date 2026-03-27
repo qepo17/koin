@@ -4,7 +4,7 @@ services:
       context: .
       target: dev
     ports:
-      - "3000:3000"
+      - "3001:3000"
     volumes:
       - .:/app
       - /app/node_modules
@@ -27,7 +27,7 @@ services:
       - ./web:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=http://localhost:3000
+      - VITE_API_URL=http://localhost:3001
     depends_on:
       - api
     restart: unless-stopped
