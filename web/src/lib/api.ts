@@ -338,6 +338,56 @@ export const debtSummary = {
     }),
 };
 
+// Subscriptions API
+export const subscriptions = {
+  list: (params?: { status?: string; billingCycle?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.status) query.append("status", params.status);
+    if (params?.billingCycle) query.append("billingCycle", params.billingCycle);
+    const queryString = query.toString() ? `?${query.toString()}` : "";
+    return request<{ data: Subscription[] }>(`/subscriptions${queryString}`);
+  },
+
+  get: (id: string) =>
+    request<{ data: Subscription }>(`/subscriptions/${id}`),
+
+  create: (body: CreateSubscriptionData) =>
+    request<{ data: Subscription }>("/subscriptions", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  update: (id: string, body: UpdateSubscriptionData) =>
+    request<{ data: Subscription }>(`/subscriptions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  delete: (id: string) =>
+    request<{ data: { message: string } }>(`/subscriptions/${id}`, {
+      method: "DELETE",
+    }),
+
+  pause: (id: string) =>
+    request<{ data: Subscription }>(`/subscriptions/${id}/pause`, {
+      method: "POST",
+    }),
+
+  resume: (id: string) =>
+    request<{ data: Subscription }>(`/subscriptions/${id}/resume`, {
+      method: "POST",
+    }),
+
+  summary: () =>
+    request<{ data: SubscriptionSummary }>("/subscriptions/summary"),
+
+  checkBilling: (date?: string) =>
+    request<{ data: BillingCheckResult }>("/subscriptions/check-billing", {
+      method: "POST",
+      body: JSON.stringify({ date }),
+    }),
+};
+
 // Combined API object
 export const api = {
   auth,
@@ -351,6 +401,7 @@ export const api = {
   debts,
   debtPayments,
   debtSummary,
+  subscriptions,
 };
 
 // Types
@@ -613,4 +664,87 @@ export interface BillingResult {
   accountName: string;
   transactionId: string;
   amount: string;
+}
+
+// Subscription Types
+export interface Subscription {
+  id: string;
+  name: string;
+  amount: string;
+  currency: string;
+  billingCycle: "weekly" | "monthly" | "quarterly" | "yearly";
+  billingDay: number;
+  categoryId: string | null;
+  categoryName?: string;
+  description?: string;
+  startDate: string;
+  endDate?: string;
+  status: "active" | "paused" | "cancelled";
+  url?: string;
+  autoTrack: boolean;
+  nextBillingDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSubscriptionData {
+  name: string;
+  amount: string;
+  billingCycle: "weekly" | "monthly" | "quarterly" | "yearly";
+  billingDay?: number;
+  categoryId?: string;
+  description?: string;
+  startDate?: string;
+  url?: string;
+  autoTrack?: boolean;
+}
+
+export interface UpdateSubscriptionData {
+  name?: string;
+  amount?: string;
+  billingCycle?: "weekly" | "monthly" | "quarterly" | "yearly";
+  billingDay?: number;
+  categoryId?: string;
+  description?: string;
+  url?: string;
+  autoTrack?: boolean;
+}
+
+export interface SubscriptionSummary {
+  monthlyTotal: string;
+  yearlyTotal: string;
+  activeCount: number;
+  upcomingThisWeek: Array<{
+    id: string;
+    name: string;
+    amount: string;
+    nextBillingDate: string;
+  }>;
+  byCategory: Array<{
+    categoryId: string;
+    categoryName: string;
+    monthlyTotal: string;
+    count: number;
+  }>;
+  byCycle: {
+    weekly: string;
+    monthly: string;
+    quarterly: string;
+    yearly: string;
+  };
+}
+
+export interface BillingCheckResult {
+  processed: number;
+  transactions: Array<{
+    subscriptionId: string;
+    subscriptionName: string;
+    transactionId: string;
+    amount: string;
+  }>;
+  skipped: Array<{
+    subscriptionId: string;
+    subscriptionName: string;
+    reason: string;
+  }>;
 }
