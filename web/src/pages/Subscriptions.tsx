@@ -1,6 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { PlusIcon, PauseIcon, PlayIcon, TrashIcon, PencilIcon, ExternalLinkIcon } from "@heroicons/react/24/outline";
 import { api, Subscription, CreateSubscriptionData, UpdateSubscriptionData } from "../lib/api";
 import { formatCurrency } from "../lib/currency";
 import { useAuth } from "../hooks/useAuth";
@@ -277,9 +276,9 @@ function SubscriptionCard({ subscription, categories, onEdit }: {
                 href={subscription.url} 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="text-gray-400 hover:text-blue-600"
+                className="text-gray-400 hover:text-blue-600 text-sm"
               >
-                <ExternalLinkIcon className="w-4 h-4" />
+                🔗
               </a>
             )}
           </div>
@@ -295,8 +294,9 @@ function SubscriptionCard({ subscription, categories, onEdit }: {
           <button
             onClick={() => onEdit(subscription)}
             className="p-1 text-gray-400 hover:text-gray-600"
+            title="Edit"
           >
-            <PencilIcon className="w-4 h-4" />
+            ✏️
           </button>
           
           {subscription.status === "active" && (
@@ -304,8 +304,9 @@ function SubscriptionCard({ subscription, categories, onEdit }: {
               onClick={() => pauseMutation.mutate(subscription.id)}
               disabled={pauseMutation.isPending}
               className="p-1 text-gray-400 hover:text-yellow-600"
+              title="Pause"
             >
-              <PauseIcon className="w-4 h-4" />
+              ⏸️
             </button>
           )}
           
@@ -314,8 +315,9 @@ function SubscriptionCard({ subscription, categories, onEdit }: {
               onClick={() => resumeMutation.mutate(subscription.id)}
               disabled={resumeMutation.isPending}
               className="p-1 text-gray-400 hover:text-green-600"
+              title="Resume"
             >
-              <PlayIcon className="w-4 h-4" />
+              ▶️
             </button>
           )}
           
@@ -327,8 +329,9 @@ function SubscriptionCard({ subscription, categories, onEdit }: {
             }}
             disabled={deleteMutation.isPending}
             className="p-1 text-gray-400 hover:text-red-600"
+            title="Cancel"
           >
-            <TrashIcon className="w-4 h-4" />
+            🗑️
           </button>
         </div>
       </div>
@@ -434,8 +437,7 @@ export function SubscriptionsPage() {
             onClick={handleAddClick}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
-            <PlusIcon className="w-4 h-4" />
-            Add Subscription
+            ➕ Add Subscription
           </button>
         </div>
 
