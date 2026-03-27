@@ -53,7 +53,18 @@ app.get("/", async (c) => {
   const status = c.req.query("status") || "active";
   const billingCycle = c.req.query("billingCycle");
   
-  let query = db
+  // Build where conditions
+  let conditions = [eq(subscriptions.userId, userId)];
+  
+  if (status !== "all") {
+    conditions.push(eq(subscriptions.status, status as any));
+  }
+  
+  if (billingCycle) {
+    conditions.push(eq(subscriptions.billingCycle, billingCycle as any));
+  }
+
+  const query = db
     .select({
       id: subscriptions.id,
       name: subscriptions.name,
@@ -74,15 +85,7 @@ app.get("/", async (c) => {
     })
     .from(subscriptions)
     .leftJoin(categories, eq(subscriptions.categoryId, categories.id))
-    .where(eq(subscriptions.userId, userId));
-
-  if (status !== "all") {
-    query = query.where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, status as any)));
-  }
-  
-  if (billingCycle) {
-    query = query.where(and(eq(subscriptions.userId, userId), eq(subscriptions.billingCycle, billingCycle as any)));
-  }
+    .where(and(...conditions));
   
   const result = await query;
   return c.json({ data: result });
