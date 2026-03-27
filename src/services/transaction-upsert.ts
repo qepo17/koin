@@ -23,7 +23,7 @@ export interface UpsertTransactionResult {
  * Insert a transaction, or update its category if a duplicate exists.
  *
  * Duplicate key: unique index idx_transactions_dedup on
- *   (user_id, type, amount, date_trunc('day', date AT TIME ZONE 'UTC'), COALESCE(description, ''))
+ *   (user_id, type, amount, date, COALESCE(description, ''))
  *
  * On conflict: only categoryId, appliedRuleId, and updatedAt are updated.
  */
@@ -50,7 +50,7 @@ export async function upsertTransaction(
       ${now.toISOString()}::timestamp,
       ${now.toISOString()}::timestamp
     )
-    ON CONFLICT (user_id, type, amount, date_trunc('day', date), COALESCE(description, ''))
+    ON CONFLICT (user_id, type, amount, date, COALESCE(description, ''))
     DO UPDATE SET
       category_id = COALESCE(EXCLUDED.category_id, transactions.category_id),
       applied_rule_id = COALESCE(EXCLUDED.applied_rule_id, transactions.applied_rule_id),

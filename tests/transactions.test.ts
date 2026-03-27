@@ -346,7 +346,7 @@ describe("Transactions API", () => {
       expect(list.data.data).toHaveLength(2);
     });
 
-    it("should treat same-day different-time as duplicate", async () => {
+    it("should treat same-day different-time as distinct", async () => {
       await api.post("/api/transactions", {
         type: "expense",
         amount: "50000",
@@ -361,10 +361,10 @@ describe("Transactions API", () => {
         date: "2026-03-08T20:00:00.000Z",
       });
 
-      expect(second.status).toBe(200);
+      expect(second.status).toBe(201);
 
       const list = await api.get("/api/transactions");
-      expect(list.data.data).toHaveLength(1);
+      expect(list.data.data).toHaveLength(2);
     });
 
     it("should handle null descriptions as matching", async () => {
