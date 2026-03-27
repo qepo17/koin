@@ -17,80 +17,83 @@ export function createDebtPaymentService(db: PostgresJsDatabase<typeof schema>) 
     amount: string,
     date: Date
   ) {
-    // Find debt accounts matching this category
-    const matchingAccounts = await db
-      .select()
-      .from(debtAccounts)
-      .where(
-        and(
-          eq(debtAccounts.userId, userId),
-          eq(debtAccounts.categoryId, categoryId),
-          eq(debtAccounts.autoTrack, true),
-          eq(debtAccounts.status, "active")
-        )
-      );
+    return await db.transaction(async (tx) => {
+      // Find debt accounts matching this category
+      const matchingAccounts = await tx
+        .select()
+        .from(debtAccounts)
+        .where(
+          and(
+            eq(debtAccounts.userId, userId),
+            eq(debtAccounts.categoryId, categoryId),
+            eq(debtAccounts.autoTrack, true),
+            eq(debtAccounts.status, "active")
+          )
+        );
 
-    // Skip if zero or multiple matches
-    if (matchingAccounts.length !== 1) return null;
+      // Skip if zero or multiple matches
+      if (matchingAccounts.length !== 1) return null;
 
-    const account = matchingAccounts[0];
+      const account = matchingAccounts[0];
 
-    // Create payment record
-    const [payment] = await db
-      .insert(debtPayments)
-      .values({
-        accountId: account.id,
-        userId,
-        totalAmount: amount,
-        transactionId,
-        paidAt: date,
-      })
-      .returning();
+      // Create payment record
+      const [payment] = await tx
+        .insert(debtPayments)
+        .values({
+          accountId: account.id,
+          userId,
+          totalAmount: amount,
+          transactionId,
+          paidAt: date,
+        })
+        .returning();
 
-    // Get active debts for this account, allocate by monthly_amount
-    const activeDebts = await db
-      .select()
-      .from(debts)
-      .where(and(eq(debts.accountId, account.id), eq(debts.status, "active")));
+      // Get active debts for this account, allocate by monthly_amount
+      const activeDebts = await tx
+        .select()
+        .from(debts)
+        .where(and(eq(debts.accountId, account.id), eq(debts.status, "active")))
+        .orderBy(debts.createdAt);
 
-    if (activeDebts.length > 0) {
-      let remaining = Number(amount);
+      if (activeDebts.length > 0) {
+        let remaining = Number(amount);
 
-      for (const debt of activeDebts) {
-        if (remaining <= 0) break;
-        const allocAmount = Math.min(remaining, Number(debt.monthlyAmount));
-        remaining -= allocAmount;
+        for (const debt of activeDebts) {
+          if (remaining <= 0) break;
+          const allocAmount = Math.min(remaining, Number(debt.monthlyAmount));
+          remaining -= allocAmount;
 
-        await db.insert(debtPaymentAllocations).values({
-          paymentId: payment.id,
-          debtId: debt.id,
-          amount: allocAmount.toFixed(2),
-        });
-      }
+          await tx.insert(debtPaymentAllocations).values({
+            paymentId: payment.id,
+            debtId: debt.id,
+            amount: allocAmount.toFixed(2),
+          });
+        }
 
-      // Excess goes to first debt
-      if (remaining > 0) {
-        const firstAllocation = await db
-          .select()
-          .from(debtPaymentAllocations)
-          .where(
-            and(
-              eq(debtPaymentAllocations.paymentId, payment.id),
-              eq(debtPaymentAllocations.debtId, activeDebts[0].id)
-            )
-          );
+        // Excess goes to first debt
+        if (remaining > 0) {
+          const firstAllocation = await tx
+            .select()
+            .from(debtPaymentAllocations)
+            .where(
+              and(
+                eq(debtPaymentAllocations.paymentId, payment.id),
+                eq(debtPaymentAllocations.debtId, activeDebts[0].id)
+              )
+            );
 
-        if (firstAllocation.length > 0) {
-          const newAmount = Number(firstAllocation[0].amount) + remaining;
-          await db
-            .update(debtPaymentAllocations)
-            .set({ amount: newAmount.toFixed(2) })
-            .where(eq(debtPaymentAllocations.id, firstAllocation[0].id));
+          if (firstAllocation.length > 0) {
+            const newAmount = Number(firstAllocation[0].amount) + remaining;
+            await tx
+              .update(debtPaymentAllocations)
+              .set({ amount: newAmount.toFixed(2) })
+              .where(eq(debtPaymentAllocations.id, firstAllocation[0].id));
+          }
         }
       }
-    }
 
-    return payment;
+      return payment;
+    });
   }
 
   /**

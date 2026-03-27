@@ -9,20 +9,11 @@ const app = new Hono();
 app.get("/summary", async (c) => {
   const userId = c.get("userId");
 
-  const accounts = await db
-    .select()
-    .from(debtAccounts)
-    .where(and(eq(debtAccounts.userId, userId), eq(debtAccounts.status, "active")));
-
-  const allDebts = await db
-    .select()
-    .from(debts)
-    .where(eq(debts.userId, userId));
-
-  const [paidResult] = await db
-    .select({ total: sql<string>`COALESCE(SUM(${debtPayments.totalAmount}), 0)` })
-    .from(debtPayments)
-    .where(eq(debtPayments.userId, userId));
+  const [accounts, allDebts, [paidResult]] = await Promise.all([
+    db.select().from(debtAccounts).where(and(eq(debtAccounts.userId, userId), eq(debtAccounts.status, "active"))),
+    db.select().from(debts).where(eq(debts.userId, userId)),
+    db.select({ total: sql<string>`COALESCE(SUM(${debtPayments.totalAmount}), 0)` }).from(debtPayments).where(eq(debtPayments.userId, userId)),
+  ]);
 
   const totalDebt = allDebts.reduce((sum, d) => sum + Number(d.totalAmount), 0);
   const totalPaid = Number(paidResult.total);
@@ -33,9 +24,11 @@ app.get("/summary", async (c) => {
   const now = new Date();
   const currentDay = now.getDate();
 
+  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+
   const upcomingThisMonth = await Promise.all(
     accounts
-      .filter((a) => a.billingDay >= currentDay)
+      .filter((a) => Math.min(a.billingDay, lastDayOfMonth) >= currentDay)
       .map(async (account) => {
         const accountActiveDebts = activeDebts.filter((d) => d.accountId === account.id);
         const totalDue = accountActiveDebts.reduce((sum, d) => sum + Number(d.monthlyAmount), 0);
@@ -118,17 +111,22 @@ app.post("/check-billing", async (c) => {
 
   const date = new Date(parsed.data.date);
   const day = date.getDate();
+  const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  const isLastDay = day === lastDayOfMonth;
 
   // Find accounts with matching billing day and autoTrack enabled
+  // Also match accounts with billingDay > lastDayOfMonth when date is the last day
   const accounts = await db
     .select()
     .from(debtAccounts)
     .where(
       and(
         eq(debtAccounts.userId, userId),
-        eq(debtAccounts.billingDay, day),
         eq(debtAccounts.autoTrack, true),
-        eq(debtAccounts.status, "active")
+        eq(debtAccounts.status, "active"),
+        isLastDay
+          ? sql`${debtAccounts.billingDay} >= ${day}`
+          : eq(debtAccounts.billingDay, day)
       )
     );
 
@@ -142,8 +140,24 @@ app.post("/check-billing", async (c) => {
       .where(and(eq(debts.accountId, account.id), eq(debts.status, "active")));
 
     if (activeDebts.length === 0) continue;
+    if (!account.categoryId) continue;
 
     const totalDue = activeDebts.reduce((sum, d) => sum + Number(d.monthlyAmount), 0);
+
+    // Check for existing billing transaction on this date
+    const existing = await db
+      .select({ id: transactions.id })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, userId),
+          eq(transactions.categoryId, account.categoryId),
+          eq(transactions.date, date)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) continue;
 
     // Create expense transaction
     const [transaction] = await db

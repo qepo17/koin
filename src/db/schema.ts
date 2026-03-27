@@ -143,6 +143,7 @@ export const debts = pgTable("debts", {
 }, (table) => ({
   accountIdIdx: index("debts_account_id_idx").on(table.accountId),
   userIdIdx: index("debts_user_id_idx").on(table.userId),
+  accountStatusIdx: index("debts_account_id_status_idx").on(table.accountId, table.status),
 }));
 
 // Debt payments linked to transactions
@@ -168,7 +169,9 @@ export const debtPaymentAllocations = pgTable("debt_payment_allocations", {
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   principal: decimal("principal", { precision: 12, scale: 2 }),
   interest: decimal("interest", { precision: 12, scale: 2 }),
-});
+}, (table) => ({
+  paymentIdIdx: index("debt_payment_allocations_payment_id_idx").on(table.paymentId),
+}));
 
 // Category rules - automatic categorization based on conditions
 export const categoryRules = pgTable("category_rules", {

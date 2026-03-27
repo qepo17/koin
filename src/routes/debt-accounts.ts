@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { db, debtAccounts, debts, debtPayments, debtPaymentAllocations } from "../db";
 import { createDebtAccountSchema, updateDebtAccountSchema } from "../types";
 
@@ -19,35 +19,42 @@ app.get("/", async (c) => {
     .from(debtAccounts)
     .where(and(...conditions));
 
-  // Compute totals per account
-  const result = await Promise.all(
-    accounts.map(async (account) => {
-      const accountDebts = await db
-        .select()
-        .from(debts)
-        .where(and(eq(debts.accountId, account.id), eq(debts.userId, userId)));
+  const accountIds = accounts.map((a) => a.id);
 
-      const payments = await db
-        .select({ total: sql<string>`COALESCE(SUM(${debtPayments.totalAmount}), 0)` })
+  const allDebts = accountIds.length > 0
+    ? await db.select().from(debts).where(and(inArray(debts.accountId, accountIds), eq(debts.userId, userId)))
+    : [];
+
+  const paymentTotals = accountIds.length > 0
+    ? await db
+        .select({
+          accountId: debtPayments.accountId,
+          total: sql<string>`COALESCE(SUM(${debtPayments.totalAmount}), 0)`,
+        })
         .from(debtPayments)
-        .where(eq(debtPayments.accountId, account.id));
+        .where(inArray(debtPayments.accountId, accountIds))
+        .groupBy(debtPayments.accountId)
+    : [];
 
-      const totalDebt = accountDebts.reduce((sum, d) => sum + Number(d.totalAmount), 0);
-      const totalPaid = Number(payments[0].total);
-      const monthlyCommitment = accountDebts
-        .filter((d) => d.status === "active")
-        .reduce((sum, d) => sum + Number(d.monthlyAmount), 0);
+  const paymentMap = new Map(paymentTotals.map((p) => [p.accountId, Number(p.total)]));
 
-      return {
-        ...account,
-        totalDebt: totalDebt.toFixed(2),
-        totalPaid: totalPaid.toFixed(2),
-        totalRemaining: (totalDebt - totalPaid).toFixed(2),
-        monthlyCommitment: monthlyCommitment.toFixed(2),
-        debtsCount: accountDebts.length,
-      };
-    })
-  );
+  const result = accounts.map((account) => {
+    const accountDebts = allDebts.filter((d) => d.accountId === account.id);
+    const totalDebt = accountDebts.reduce((sum, d) => sum + Number(d.totalAmount), 0);
+    const totalPaid = paymentMap.get(account.id) || 0;
+    const monthlyCommitment = accountDebts
+      .filter((d) => d.status === "active")
+      .reduce((sum, d) => sum + Number(d.monthlyAmount), 0);
+
+    return {
+      ...account,
+      totalDebt: totalDebt.toFixed(2),
+      totalPaid: totalPaid.toFixed(2),
+      totalRemaining: (totalDebt - totalPaid).toFixed(2),
+      monthlyCommitment: monthlyCommitment.toFixed(2),
+      debtsCount: accountDebts.length,
+    };
+  });
 
   return c.json({ data: result });
 });
@@ -87,7 +94,7 @@ app.get("/:id", async (c) => {
   const accountDebts = await db
     .select()
     .from(debts)
-    .where(eq(debts.accountId, id));
+    .where(and(eq(debts.accountId, id), eq(debts.userId, userId)));
 
   const payments = await db
     .select()
@@ -96,16 +103,15 @@ app.get("/:id", async (c) => {
     .orderBy(sql`${debtPayments.paidAt} DESC`)
     .limit(20);
 
-  // Get allocations for each payment
-  const paymentsWithAllocations = await Promise.all(
-    payments.map(async (payment) => {
-      const allocations = await db
-        .select()
-        .from(debtPaymentAllocations)
-        .where(eq(debtPaymentAllocations.paymentId, payment.id));
-      return { ...payment, allocations };
-    })
-  );
+  const paymentIds = payments.map((p) => p.id);
+  const allAllocations = paymentIds.length > 0
+    ? await db.select().from(debtPaymentAllocations).where(inArray(debtPaymentAllocations.paymentId, paymentIds))
+    : [];
+
+  const paymentsWithAllocations = payments.map((payment) => ({
+    ...payment,
+    allocations: allAllocations.filter((a) => a.paymentId === payment.id),
+  }));
 
   return c.json({
     data: {

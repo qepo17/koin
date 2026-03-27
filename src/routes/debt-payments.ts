@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { db, debtAccounts, debtPayments, debtPaymentAllocations } from "../db";
 
 const app = new Hono();
@@ -8,8 +8,8 @@ const app = new Hono();
 app.get("/:accountId/payments", async (c) => {
   const userId = c.get("userId");
   const accountId = c.req.param("accountId");
-  const limit = parseInt(c.req.query("limit") || "20");
-  const offset = parseInt(c.req.query("offset") || "0");
+  const limit = Math.min(Math.max(parseInt(c.req.query("limit") || "20") || 20, 1), 100);
+  const offset = Math.max(parseInt(c.req.query("offset") || "0") || 0, 0);
 
   // Verify account belongs to user
   const account = await db
@@ -29,15 +29,15 @@ app.get("/:accountId/payments", async (c) => {
     .limit(limit)
     .offset(offset);
 
-  const result = await Promise.all(
-    payments.map(async (payment) => {
-      const allocations = await db
-        .select()
-        .from(debtPaymentAllocations)
-        .where(eq(debtPaymentAllocations.paymentId, payment.id));
-      return { ...payment, allocations };
-    })
-  );
+  const paymentIds = payments.map((p) => p.id);
+  const allAllocations = paymentIds.length > 0
+    ? await db.select().from(debtPaymentAllocations).where(inArray(debtPaymentAllocations.paymentId, paymentIds))
+    : [];
+
+  const result = payments.map((payment) => ({
+    ...payment,
+    allocations: allAllocations.filter((a) => a.paymentId === payment.id),
+  }));
 
   return c.json({ data: result });
 });

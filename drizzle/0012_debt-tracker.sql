@@ -78,3 +78,5 @@ CREATE INDEX IF NOT EXISTS "debts_account_id_idx" ON "debts" USING btree ("accou
 CREATE INDEX IF NOT EXISTS "debts_user_id_idx" ON "debts" USING btree ("user_id");
 CREATE INDEX IF NOT EXISTS "debt_payments_account_id_idx" ON "debt_payments" USING btree ("account_id");
 CREATE INDEX IF NOT EXISTS "debt_payments_transaction_id_idx" ON "debt_payments" USING btree ("transaction_id");
+CREATE INDEX IF NOT EXISTS "debts_account_id_status_idx" ON "debts" USING btree ("account_id", "status");
+CREATE INDEX IF NOT EXISTS "debt_payment_allocations_payment_id_idx" ON "debt_payment_allocations" USING btree ("payment_id");

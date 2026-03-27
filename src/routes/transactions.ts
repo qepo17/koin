@@ -141,10 +141,6 @@ app.delete("/:id", async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
 
-  // Remove linked debt payment (cascade deletes allocations)
-  const debtService = getDebtPaymentService();
-  await debtService.removePaymentByTransaction(id);
-
   const result = await db
     .delete(transactions)
     .where(and(eq(transactions.id, id), eq(transactions.userId, userId)))
@@ -153,6 +149,10 @@ app.delete("/:id", async (c) => {
   if (result.length === 0) {
     return c.json({ error: "Transaction not found" }, 404);
   }
+
+  // Remove linked debt payment (cascade deletes allocations)
+  const debtService = getDebtPaymentService();
+  await debtService.removePaymentByTransaction(id);
 
   return c.json({ data: result[0] });
 });
