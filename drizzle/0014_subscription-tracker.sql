@@ -1,3 +1,7 @@
+-- Migration: 0014_subscription-tracker
+-- Note: This migration was created manually due to drizzle-kit metadata conflicts
+-- TODO: Regenerate using `bun run db:generate` after migration state is fixed
+
 DO $$ BEGIN
   CREATE TYPE "billing_cycle" AS ENUM ('weekly', 'monthly', 'quarterly', 'yearly');
 EXCEPTION WHEN duplicate_object THEN null;
