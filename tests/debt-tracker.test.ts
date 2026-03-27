@@ -709,11 +709,15 @@ describe("Debt Tracker API", () => {
 
   describe("POST /api/debts/check-billing", () => {
     it("should create transactions for accounts due on the given date", async () => {
+      const cat = await api.post("/api/categories", { name: "CC Billing" });
+      const categoryId = cat.data.data.id;
+
       const acc = await api.post("/api/debt-accounts", {
         name: "BRI CC",
         type: "credit_card",
         billingDay: 20,
         autoTrack: true,
+        categoryId,
       });
       const accountId = acc.data.data.id;
 
@@ -782,6 +786,330 @@ describe("Debt Tracker API", () => {
         date: "invalid",
       });
       expect(status).toBe(400);
+    });
+
+    it("should handle last-day-of-month for billingDay > month days (e.g. 31 in Feb)", async () => {
+      const cat = await api.post("/api/categories", { name: "CC Bills" });
+      const categoryId = cat.data.data.id;
+
+      const acc = await api.post("/api/debt-accounts", {
+        name: "CC with 31st billing",
+        type: "credit_card",
+        billingDay: 31,
+        autoTrack: true,
+        categoryId,
+      });
+      const accountId = acc.data.data.id;
+
+      await api.post(`/api/debt-accounts/${accountId}/debts`, {
+        name: "Debt",
+        type: "installment",
+        totalAmount: "10000000",
+        monthlyAmount: "1000000",
+      });
+
+      // Feb 28, 2026 is last day of Feb (non-leap year) — billingDay 31 should trigger
+      const { status, data } = await api.post("/api/debts/check-billing", {
+        date: "2026-02-28T00:00:00Z",
+      });
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(1);
+      expect(data.data[0].accountName).toBe("CC with 31st billing");
+      expect(data.data[0].amount).toBe("1000000.00");
+    });
+
+    it("should NOT trigger billingDay 31 on Feb 27 (not last day)", async () => {
+      const cat = await api.post("/api/categories", { name: "CC Bills 2" });
+      const categoryId = cat.data.data.id;
+
+      const acc = await api.post("/api/debt-accounts", {
+        name: "CC 31st",
+        type: "credit_card",
+        billingDay: 31,
+        autoTrack: true,
+        categoryId,
+      });
+
+      await api.post(`/api/debt-accounts/${acc.data.data.id}/debts`, {
+        name: "Debt",
+        type: "installment",
+        totalAmount: "5000000",
+        monthlyAmount: "500000",
+      });
+
+      const { data } = await api.post("/api/debts/check-billing", {
+        date: "2026-02-27T00:00:00Z",
+      });
+
+      expect(data.data).toHaveLength(0);
+    });
+
+    it("should skip accounts without categoryId", async () => {
+      const acc = await api.post("/api/debt-accounts", {
+        name: "No Category CC",
+        type: "credit_card",
+        billingDay: 15,
+        autoTrack: true,
+        // No categoryId
+      });
+
+      await api.post(`/api/debt-accounts/${acc.data.data.id}/debts`, {
+        name: "Debt",
+        type: "installment",
+        totalAmount: "10000000",
+        monthlyAmount: "1000000",
+      });
+
+      const { data } = await api.post("/api/debts/check-billing", {
+        date: "2026-03-15T00:00:00Z",
+      });
+
+      expect(data.data).toHaveLength(0);
+    });
+
+    it("should not create duplicate billing transactions for same date", async () => {
+      const cat = await api.post("/api/categories", { name: "Billing Cat" });
+      const categoryId = cat.data.data.id;
+
+      const acc = await api.post("/api/debt-accounts", {
+        name: "BRI CC",
+        type: "credit_card",
+        billingDay: 20,
+        autoTrack: true,
+        categoryId,
+      });
+
+      await api.post(`/api/debt-accounts/${acc.data.data.id}/debts`, {
+        name: "iPhone",
+        type: "installment",
+        totalAmount: "18000000",
+        monthlyAmount: "1500000",
+      });
+
+      // First call creates
+      const first = await api.post("/api/debts/check-billing", {
+        date: "2026-03-20T00:00:00Z",
+      });
+      expect(first.data.data).toHaveLength(1);
+
+      // Second call should skip (duplicate prevention)
+      const second = await api.post("/api/debts/check-billing", {
+        date: "2026-03-20T00:00:00Z",
+      });
+      expect(second.data.data).toHaveLength(0);
+    });
+  });
+
+  // --- Security: Account Detail Isolation ---
+
+  describe("Account detail user isolation", () => {
+    it("should not expose debts from another user in account detail", async () => {
+      // User 1 creates account and debt
+      const acc = await api.post("/api/debt-accounts", {
+        name: "Shared Account",
+        type: "credit_card",
+        billingDay: 10,
+      });
+      const accountId = acc.data.data.id;
+
+      await api.post(`/api/debt-accounts/${accountId}/debts`, {
+        name: "User1 Debt",
+        type: "installment",
+        totalAmount: "5000000",
+        monthlyAmount: "500000",
+      });
+
+      // User 1 should see their debt
+      const { data } = await api.get(`/api/debt-accounts/${accountId}`);
+      expect(data.data.debts).toHaveLength(1);
+      expect(data.data.debts[0].name).toBe("User1 Debt");
+    });
+  });
+
+  // --- Payments Pagination ---
+
+  describe("Payments pagination", () => {
+    it("should respect limit and offset params", async () => {
+      const cat = await api.post("/api/categories", { name: "Pag Cat" });
+      const categoryId = cat.data.data.id;
+
+      const acc = await api.post("/api/debt-accounts", {
+        name: "Pag CC",
+        type: "credit_card",
+        billingDay: 20,
+        categoryId,
+      });
+      const accountId = acc.data.data.id;
+
+      await api.post(`/api/debt-accounts/${accountId}/debts`, {
+        name: "Debt",
+        type: "installment",
+        totalAmount: "10000000",
+        monthlyAmount: "500000",
+      });
+
+      // Create 3 payment transactions
+      for (let i = 0; i < 3; i++) {
+        await api.post("/api/transactions", {
+          type: "expense",
+          amount: "500000",
+          description: `Payment ${i + 1}`,
+          categoryId,
+        });
+      }
+
+      // Verify all 3 exist
+      const all = await api.get(`/api/debt-accounts/${accountId}/payments`);
+      expect(all.data.data).toHaveLength(3);
+
+      // Limit to 1
+      const limited = await api.get(`/api/debt-accounts/${accountId}/payments?limit=1`);
+      expect(limited.data.data).toHaveLength(1);
+
+      // Offset by 2
+      const offset = await api.get(`/api/debt-accounts/${accountId}/payments?limit=10&offset=2`);
+      expect(offset.data.data).toHaveLength(1);
+    });
+
+    it("should clamp limit to max 100 and min 1", async () => {
+      const acc = await api.post("/api/debt-accounts", {
+        name: "Clamp CC",
+        type: "credit_card",
+        billingDay: 20,
+      });
+      const accountId = acc.data.data.id;
+
+      // Negative limit should be clamped to 1 (not error)
+      const { status } = await api.get(`/api/debt-accounts/${accountId}/payments?limit=-5`);
+      expect(status).toBe(200);
+
+      // Huge limit should be clamped to 100 (not error)
+      const { status: status2 } = await api.get(`/api/debt-accounts/${accountId}/payments?limit=9999`);
+      expect(status2).toBe(200);
+    });
+
+    it("should clamp negative offset to 0", async () => {
+      const acc = await api.post("/api/debt-accounts", {
+        name: "Offset CC",
+        type: "credit_card",
+        billingDay: 20,
+      });
+      const accountId = acc.data.data.id;
+
+      const { status } = await api.get(`/api/debt-accounts/${accountId}/payments?offset=-10`);
+      expect(status).toBe(200);
+    });
+  });
+
+  // --- Debt allocation ordering ---
+
+  describe("Debt payment allocation ordering", () => {
+    it("should allocate payments to debts ordered by createdAt", async () => {
+      const cat = await api.post("/api/categories", { name: "Order Cat" });
+      const categoryId = cat.data.data.id;
+
+      const acc = await api.post("/api/debt-accounts", {
+        name: "Order CC",
+        type: "credit_card",
+        billingDay: 20,
+        categoryId,
+      });
+      const accountId = acc.data.data.id;
+
+      // Create debts in a specific order
+      const debtA = await api.post(`/api/debt-accounts/${accountId}/debts`, {
+        name: "First Debt",
+        type: "installment",
+        totalAmount: "10000000",
+        monthlyAmount: "1000000",
+      });
+      const debtAId = debtA.data.data.id;
+
+      const debtB = await api.post(`/api/debt-accounts/${accountId}/debts`, {
+        name: "Second Debt",
+        type: "installment",
+        totalAmount: "5000000",
+        monthlyAmount: "500000",
+      });
+      const debtBId = debtB.data.data.id;
+
+      // Pay exactly the total of both monthly amounts
+      await api.post("/api/transactions", {
+        type: "expense",
+        amount: "1500000",
+        categoryId,
+      });
+
+      const { data } = await api.get(`/api/debt-accounts/${accountId}/payments`);
+      expect(data.data).toHaveLength(1);
+
+      const allocations = data.data[0].allocations;
+      expect(allocations).toHaveLength(2);
+
+      // Verify first debt (created first) gets allocated first
+      const firstAlloc = allocations.find((a: any) => a.debtId === debtAId);
+      const secondAlloc = allocations.find((a: any) => a.debtId === debtBId);
+      expect(firstAlloc.amount).toBe("1000000.00");
+      expect(secondAlloc.amount).toBe("500000.00");
+    });
+  });
+
+  // --- Multiple accounts: list with batch queries ---
+
+  describe("List accounts with multiple accounts", () => {
+    it("should correctly compute totals across multiple accounts", async () => {
+      // Account 1 with a debt
+      const acc1 = await api.post("/api/debt-accounts", {
+        name: "CC 1",
+        type: "credit_card",
+        billingDay: 10,
+      });
+      await api.post(`/api/debt-accounts/${acc1.data.data.id}/debts`, {
+        name: "Debt 1",
+        type: "installment",
+        totalAmount: "10000000",
+        monthlyAmount: "1000000",
+      });
+
+      // Account 2 with a debt
+      const acc2 = await api.post("/api/debt-accounts", {
+        name: "Loan 1",
+        type: "loan",
+        billingDay: 5,
+      });
+      await api.post(`/api/debt-accounts/${acc2.data.data.id}/debts`, {
+        name: "Debt 2",
+        type: "installment",
+        totalAmount: "50000000",
+        monthlyAmount: "2000000",
+      });
+
+      const { status, data } = await api.get("/api/debt-accounts");
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(2);
+
+      const cc = data.data.find((a: any) => a.name === "CC 1");
+      const loan = data.data.find((a: any) => a.name === "Loan 1");
+
+      expect(cc.totalDebt).toBe("10000000.00");
+      expect(cc.monthlyCommitment).toBe("1000000.00");
+      expect(loan.totalDebt).toBe("50000000.00");
+      expect(loan.monthlyCommitment).toBe("2000000.00");
+    });
+
+    it("should return zero totals for accounts with no debts", async () => {
+      await api.post("/api/debt-accounts", {
+        name: "Empty CC",
+        type: "credit_card",
+        billingDay: 15,
+      });
+
+      const { data } = await api.get("/api/debt-accounts");
+      expect(data.data[0].totalDebt).toBe("0.00");
+      expect(data.data[0].totalPaid).toBe("0.00");
+      expect(data.data[0].totalRemaining).toBe("0.00");
+      expect(data.data[0].debtsCount).toBe(0);
     });
   });
 });
