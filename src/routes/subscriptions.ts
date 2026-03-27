@@ -91,6 +91,102 @@ app.get("/", async (c) => {
   return c.json({ data: result });
 });
 
+// Get subscription summary
+app.get("/summary", async (c) => {
+  const userId = c.get("userId");
+  
+  // Get all active subscriptions
+  const activeSubs = await db
+    .select({
+      id: subscriptions.id,
+      name: subscriptions.name,
+      amount: subscriptions.amount,
+      billingCycle: subscriptions.billingCycle,
+      nextBillingDate: subscriptions.nextBillingDate,
+      categoryId: subscriptions.categoryId,
+      categoryName: categories.name,
+    })
+    .from(subscriptions)
+    .leftJoin(categories, eq(subscriptions.categoryId, categories.id))
+    .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active")));
+  
+  // Calculate totals
+  let monthlyTotal = 0;
+  const byCycle = { weekly: 0, monthly: 0, quarterly: 0, yearly: 0 };
+  const byCategory: Record<string, { categoryId: string | null; categoryName: string | null; monthlyTotal: number; count: number }> = {};
+  
+  for (const sub of activeSubs) {
+    const amount = Number(sub.amount);
+    let monthlyAmount = 0;
+    
+    switch (sub.billingCycle) {
+      case "weekly":
+        monthlyAmount = amount * 4.33; // ~4.33 weeks per month
+        byCycle.weekly += amount;
+        break;
+      case "monthly":
+        monthlyAmount = amount;
+        byCycle.monthly += amount;
+        break;
+      case "quarterly":
+        monthlyAmount = amount / 3;
+        byCycle.quarterly += amount;
+        break;
+      case "yearly":
+        monthlyAmount = amount / 12;
+        byCycle.yearly += amount;
+        break;
+    }
+    
+    monthlyTotal += monthlyAmount;
+    
+    // Group by category
+    const catKey = sub.categoryId || "none";
+    if (!byCategory[catKey]) {
+      byCategory[catKey] = {
+        categoryId: sub.categoryId,
+        categoryName: sub.categoryName,
+        monthlyTotal: 0,
+        count: 0,
+      };
+    }
+    byCategory[catKey].monthlyTotal += monthlyAmount;
+    byCategory[catKey].count += 1;
+  }
+  
+  // Get upcoming subscriptions this week
+  const weekFromNow = new Date();
+  weekFromNow.setDate(weekFromNow.getDate() + 7);
+  
+  const upcomingThisWeek = activeSubs
+    .filter(sub => new Date(sub.nextBillingDate) <= weekFromNow)
+    .map(sub => ({
+      id: sub.id,
+      name: sub.name,
+      amount: sub.amount,
+      nextBillingDate: sub.nextBillingDate,
+    }));
+  
+  const response = {
+    monthlyTotal: monthlyTotal.toFixed(2),
+    yearlyTotal: (monthlyTotal * 12).toFixed(2),
+    activeCount: activeSubs.length,
+    upcomingThisWeek,
+    byCategory: Object.values(byCategory).map(cat => ({
+      ...cat,
+      monthlyTotal: cat.monthlyTotal.toFixed(2),
+    })),
+    byCycle: {
+      weekly: byCycle.weekly.toFixed(2),
+      monthly: byCycle.monthly.toFixed(2),
+      quarterly: byCycle.quarterly.toFixed(2),
+      yearly: byCycle.yearly.toFixed(2),
+    },
+  };
+  
+  return c.json({ data: response });
+});
+
 // Get single subscription (scoped to user)
 app.get("/:id", async (c) => {
   const userId = c.get("userId");
@@ -297,102 +393,6 @@ app.post("/:id/resume", async (c) => {
     .returning();
   
   return c.json({ data: result[0] });
-});
-
-// Get subscription summary
-app.get("/summary", async (c) => {
-  const userId = c.get("userId");
-  
-  // Get all active subscriptions
-  const activeSubs = await db
-    .select({
-      id: subscriptions.id,
-      name: subscriptions.name,
-      amount: subscriptions.amount,
-      billingCycle: subscriptions.billingCycle,
-      nextBillingDate: subscriptions.nextBillingDate,
-      categoryId: subscriptions.categoryId,
-      categoryName: categories.name,
-    })
-    .from(subscriptions)
-    .leftJoin(categories, eq(subscriptions.categoryId, categories.id))
-    .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active")));
-  
-  // Calculate totals
-  let monthlyTotal = 0;
-  const byCycle = { weekly: 0, monthly: 0, quarterly: 0, yearly: 0 };
-  const byCategory: Record<string, { categoryId: string | null; categoryName: string | null; monthlyTotal: number; count: number }> = {};
-  
-  for (const sub of activeSubs) {
-    const amount = Number(sub.amount);
-    let monthlyAmount = 0;
-    
-    switch (sub.billingCycle) {
-      case "weekly":
-        monthlyAmount = amount * 4.33; // ~4.33 weeks per month
-        byCycle.weekly += amount;
-        break;
-      case "monthly":
-        monthlyAmount = amount;
-        byCycle.monthly += amount;
-        break;
-      case "quarterly":
-        monthlyAmount = amount / 3;
-        byCycle.quarterly += amount;
-        break;
-      case "yearly":
-        monthlyAmount = amount / 12;
-        byCycle.yearly += amount;
-        break;
-    }
-    
-    monthlyTotal += monthlyAmount;
-    
-    // Group by category
-    const catKey = sub.categoryId || "none";
-    if (!byCategory[catKey]) {
-      byCategory[catKey] = {
-        categoryId: sub.categoryId,
-        categoryName: sub.categoryName,
-        monthlyTotal: 0,
-        count: 0,
-      };
-    }
-    byCategory[catKey].monthlyTotal += monthlyAmount;
-    byCategory[catKey].count += 1;
-  }
-  
-  // Get upcoming subscriptions this week
-  const weekFromNow = new Date();
-  weekFromNow.setDate(weekFromNow.getDate() + 7);
-  
-  const upcomingThisWeek = activeSubs
-    .filter(sub => new Date(sub.nextBillingDate) <= weekFromNow)
-    .map(sub => ({
-      id: sub.id,
-      name: sub.name,
-      amount: sub.amount,
-      nextBillingDate: sub.nextBillingDate,
-    }));
-  
-  const response = {
-    monthlyTotal: monthlyTotal.toFixed(2),
-    yearlyTotal: (monthlyTotal * 12).toFixed(2),
-    activeCount: activeSubs.length,
-    upcomingThisWeek,
-    byCategory: Object.values(byCategory).map(cat => ({
-      ...cat,
-      monthlyTotal: cat.monthlyTotal.toFixed(2),
-    })),
-    byCycle: {
-      weekly: byCycle.weekly.toFixed(2),
-      monthly: byCycle.monthly.toFixed(2),
-      quarterly: byCycle.quarterly.toFixed(2),
-      yearly: byCycle.yearly.toFixed(2),
-    },
-  };
-  
-  return c.json({ data: response });
 });
 
 // Check billing - create transactions for due subscriptions
