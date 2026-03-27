@@ -500,6 +500,136 @@ curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
 
 Creates expense transactions for accounts with billing day matching the given date (only if `autoTrack` is enabled and debts are active). Returns the created transactions.
 
+### Subscriptions
+
+Track recurring subscriptions and bills — see where your money goes every month.
+
+#### List Subscriptions
+```bash
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  "$KOIN_API_URL/subscriptions?status=active&billingCycle=monthly"
+```
+
+Query params:
+- `status` — `active`, `paused`, or `cancelled` (default: `active`)
+- `billingCycle` — `weekly`, `monthly`, `quarterly`, or `yearly`
+
+#### Create Subscription
+```bash
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/subscriptions" \
+  -d '{
+    "name": "Netflix",
+    "amount": "54000.00",
+    "billingCycle": "monthly",
+    "billingDay": 15,
+    "categoryId": "entertainment-category-uuid",
+    "description": "Premium plan",
+    "startDate": "2025-01-15T00:00:00Z",
+    "url": "https://netflix.com",
+    "autoTrack": true
+  }'
+```
+
+Required: `name`, `amount`, `billingCycle`
+
+Optional: `billingDay` (default: day of startDate or 1), `categoryId`, `description`, `startDate` (default: today), `url`, `autoTrack` (default: true)
+
+- `billingDay` — 1-31 for monthly/quarterly/yearly, 1-7 for weekly (1=Monday)
+- `autoTrack` — when true, automatically creates expense transactions on billing day
+
+#### Get Subscription
+```bash
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/subscriptions/:id"
+```
+
+#### Update Subscription
+```bash
+curl -X PATCH -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/subscriptions/:id" \
+  -d '{"amount": "59000.00", "description": "Upgraded to premium"}'
+```
+
+When `amount` or `billingCycle` changes, `nextBillingDate` is automatically recalculated.
+
+#### Cancel Subscription
+```bash
+curl -X DELETE -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/subscriptions/:id"
+```
+
+Soft-delete: sets status to `cancelled` and `endDate` to now.
+
+#### Pause Subscription
+```bash
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/subscriptions/:id/pause"
+```
+
+Pauses a subscription (stops auto-tracking). Useful for travel or temporary stops.
+
+#### Resume Subscription
+```bash
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/subscriptions/:id/resume"
+```
+
+Resumes a paused subscription and recalculates the next billing date.
+
+#### Get Subscription Summary
+```bash
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/subscriptions/summary"
+```
+
+Returns:
+```json
+{
+  "data": {
+    "monthlyTotal": "250000.00",
+    "yearlyTotal": "3000000.00",
+    "activeCount": 8,
+    "upcomingThisWeek": [
+      {"id": "uuid", "name": "Netflix", "amount": "54000.00", "nextBillingDate": "2026-03-28T00:00:00Z"}
+    ],
+    "byCategory": [
+      {"categoryId": "uuid", "categoryName": "Entertainment", "monthlyTotal": "100000.00", "count": 3}
+    ],
+    "byCycle": {
+      "weekly": "0.00",
+      "monthly": "200000.00", 
+      "quarterly": "50000.00",
+      "yearly": "600000.00"
+    }
+  }
+}
+```
+
+#### Check Billing
+```bash
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/subscriptions/check-billing" \
+  -d '{"date": "2026-03-26T00:00:00Z"}'
+```
+
+Optional: `date` (default: today)
+
+Creates expense transactions for subscriptions due on the given date (only if `autoTrack` is enabled and subscription is active). For `billingDay` > days in month (e.g., 31 in Feb), uses last day of month.
+
+Returns:
+```json
+{
+  "data": {
+    "processed": 3,
+    "transactions": [
+      {"subscriptionId": "uuid", "subscriptionName": "Netflix", "transactionId": "uuid", "amount": "54000.00"}
+    ],
+    "skipped": [
+      {"subscriptionId": "uuid", "subscriptionName": "Paused Sub", "reason": "paused"}
+    ]
+  }
+}
+```
+
 ### Settings
 
 #### Get User Settings
@@ -585,6 +715,33 @@ curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
 ### Check debt summary
 ```bash
 curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/debts/summary"
+```
+
+### Set up subscription tracking
+```bash
+# 1. Create a category for entertainment subscriptions
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/categories" \
+  -d '{"name": "Entertainment", "color": "#f59e0b"}'
+
+# 2. Add Netflix subscription with auto-tracking
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/subscriptions" \
+  -d '{"name": "Netflix", "amount": "54000.00", "billingCycle": "monthly", "billingDay": 15, "categoryId": "CATEGORY_ID", "autoTrack": true}'
+
+# Now Netflix will auto-create expense transactions on the 15th of each month
+```
+
+### Check subscription spending
+```bash
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/subscriptions/summary"
+```
+
+### Pause subscription for travel
+```bash
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/subscriptions/SUBSCRIPTION_ID/pause"
 ```
 
 ### Check this month's spending
