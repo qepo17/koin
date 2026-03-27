@@ -92,6 +92,13 @@
       "when": 1774800000000,
       "tag": "0012_debt-tracker",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1774886400000,
+      "tag": "0013_transaction_dedup_index_v2",
+      "breakpoints": true
     }
   ]
 }
