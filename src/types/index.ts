@@ -102,27 +102,28 @@ export type UpdateDebtAccount = z.infer<typeof updateDebtAccountSchema>;
 export type CreateDebt = z.infer<typeof createDebtSchema>;
 export type UpdateDebt = z.infer<typeof updateDebtSchema>;
 
+// TODO: Uncomment when subscription migration is applied
 // Subscription schemas
-export const createSubscriptionSchema = z.object({
-  name: z.string().min(1).max(100),
-  amount: z.string().or(z.number()).transform((v) => String(v)).pipe(z.string().refine((v) => Number(v) > 0, "Must be positive")),
-  billingCycle: z.enum(["weekly", "monthly", "quarterly", "yearly"]),
-  billingDay: z.number().int().min(1).max(31).optional(),
-  categoryId: z.string().uuid().optional(),
-  description: z.string().optional(),
-  startDate: z.string().datetime().optional(),
-  url: z.string().url().optional(),
-  autoTrack: z.boolean().optional(),
-});
+// export const createSubscriptionSchema = z.object({
+//   name: z.string().min(1).max(100),
+//   amount: z.string().or(z.number()).transform((v) => String(v)).pipe(z.string().refine((v) => Number(v) > 0, "Must be positive")),
+//   billingCycle: z.enum(["weekly", "monthly", "quarterly", "yearly"]),
+//   billingDay: z.number().int().min(1).max(31).optional(),
+//   categoryId: z.string().uuid().optional(),
+//   description: z.string().optional(),
+//   startDate: z.string().datetime().optional(),
+//   url: z.string().url().optional(),
+//   autoTrack: z.boolean().optional(),
+// });
 
-export const updateSubscriptionSchema = createSubscriptionSchema.partial();
+// export const updateSubscriptionSchema = createSubscriptionSchema.partial();
 
-export const subscriptionBillingCheckSchema = z.object({
-  date: z.string().datetime().optional(),
-});
+// export const subscriptionBillingCheckSchema = z.object({
+//   date: z.string().datetime().optional(),
+// });
 
-export type CreateSubscription = z.infer<typeof createSubscriptionSchema>;
-export type UpdateSubscription = z.infer<typeof updateSubscriptionSchema>;
+// export type CreateSubscription = z.infer<typeof createSubscriptionSchema>;
+// export type UpdateSubscription = z.infer<typeof updateSubscriptionSchema>;
 
 // Settings schemas
 export const updateSettingsSchema = z.object({
