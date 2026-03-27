@@ -1,6 +1,8 @@
 import { pgTable, uuid, text, decimal, timestamp, pgEnum, index, integer, boolean, jsonb } from "drizzle-orm/pg-core";
 
 export const transactionTypeEnum = pgEnum("transaction_type", ["income", "expense", "adjustment"]);
+export const billingCycleEnum = pgEnum("billing_cycle", ["weekly", "monthly", "quarterly", "yearly"]);
+export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "paused", "cancelled"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -47,6 +49,32 @@ export const budgets = pgTable("budgets", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// Subscription tracker
+export const subscriptions = pgTable("subscriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  name: text("name").notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("USD"),
+  billingCycle: billingCycleEnum("billing_cycle").notNull(),
+  billingDay: integer("billing_day").notNull(),
+  categoryId: uuid("category_id").references(() => categories.id),
+  description: text("description"),
+  startDate: timestamp("start_date").defaultNow().notNull(),
+  endDate: timestamp("end_date"),
+  status: subscriptionStatusEnum("status").notNull().default("active"),
+  url: text("url"),
+  autoTrack: boolean("auto_track").notNull().default(true),
+  nextBillingDate: timestamp("next_billing_date").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("subscriptions_user_id_idx").on(table.userId),
+  categoryIdIdx: index("subscriptions_category_id_idx").on(table.categoryId),
+  nextBillingIdx: index("subscriptions_next_billing_idx").on(table.nextBillingDate),
+  userStatusIdx: index("subscriptions_user_status_idx").on(table.userId, table.status),
+}));
 
 // API tokens for integrations (AI agents, etc.)
 export const apiTokens = pgTable("api_tokens", {
