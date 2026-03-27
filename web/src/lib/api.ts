@@ -252,6 +252,92 @@ export const ai = {
   },
 };
 
+// Debt Accounts API
+export const debtAccounts = {
+  list: (params?: { status?: string; type?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.set("status", params.status);
+    if (params?.type) searchParams.set("type", params.type);
+    const query = searchParams.toString();
+    return request<{ data: DebtAccountWithTotals[] }>(
+      `/debt-accounts${query ? `?${query}` : ""}`
+    );
+  },
+
+  get: (id: string) =>
+    request<{ data: DebtAccountDetail }>(`/debt-accounts/${id}`),
+
+  create: (body: CreateDebtAccount) =>
+    request<{ data: DebtAccount }>("/debt-accounts", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  update: (id: string, body: Partial<CreateDebtAccount>) =>
+    request<{ data: DebtAccount }>(`/debt-accounts/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  close: (id: string) =>
+    request<{ data: DebtAccount }>(`/debt-accounts/${id}`, {
+      method: "DELETE",
+    }),
+};
+
+// Debts API
+export const debts = {
+  list: (accountId: string, params?: { status?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.set("status", params.status);
+    const query = searchParams.toString();
+    return request<{ data: Debt[] }>(
+      `/debt-accounts/${accountId}/debts${query ? `?${query}` : ""}`
+    );
+  },
+
+  create: (accountId: string, body: CreateDebt) =>
+    request<{ data: Debt }>(`/debt-accounts/${accountId}/debts`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  update: (accountId: string, id: string, body: Partial<CreateDebt>) =>
+    request<{ data: Debt }>(`/debt-accounts/${accountId}/debts/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  cancel: (accountId: string, id: string) =>
+    request<{ data: Debt }>(`/debt-accounts/${accountId}/debts/${id}`, {
+      method: "DELETE",
+    }),
+};
+
+// Debt Payments API
+export const debtPayments = {
+  list: (accountId: string, params?: { limit?: number; offset?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.set("limit", params.limit.toString());
+    if (params?.offset) searchParams.set("offset", params.offset.toString());
+    const query = searchParams.toString();
+    return request<{ data: DebtPaymentWithAllocations[] }>(
+      `/debt-accounts/${accountId}/payments${query ? `?${query}` : ""}`
+    );
+  },
+};
+
+// Debt Summary API
+export const debtSummary = {
+  get: () => request<{ data: DebtSummaryData }>("/debts/summary"),
+
+  checkBilling: (date: string) =>
+    request<{ data: BillingResult[] }>("/debts/check-billing", {
+      method: "POST",
+      body: JSON.stringify({ date }),
+    }),
+};
+
 // Combined API object
 export const api = {
   auth,
@@ -261,6 +347,10 @@ export const api = {
   settings,
   skill,
   ai,
+  debtAccounts,
+  debts,
+  debtPayments,
+  debtSummary,
 };
 
 // Types
@@ -392,4 +482,135 @@ export interface AICommandResult {
       category: string | null;
     }>;
   };
+}
+
+// Debt Types
+export interface DebtAccount {
+  id: string;
+  userId: string;
+  name: string;
+  type: "credit_card" | "loan" | "other";
+  creditor: string | null;
+  creditLimit: string | null;
+  billingDay: number;
+  categoryId: string | null;
+  autoTrack: boolean;
+  status: "active" | "closed";
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DebtAccountWithTotals extends DebtAccount {
+  totalDebt: string;
+  totalPaid: string;
+  totalRemaining: string;
+  monthlyCommitment: string;
+  debtsCount: number;
+}
+
+export interface DebtAccountDetail extends DebtAccount {
+  debts: Debt[];
+  recentPayments: DebtPaymentWithAllocations[];
+}
+
+export interface CreateDebtAccount {
+  name: string;
+  type: "credit_card" | "loan" | "other";
+  creditor?: string;
+  creditLimit?: string;
+  billingDay: number;
+  categoryId?: string;
+  autoTrack?: boolean;
+  description?: string;
+}
+
+export interface Debt {
+  id: string;
+  accountId: string;
+  userId: string;
+  name: string;
+  type: "installment" | "revolving" | "loan" | "other";
+  totalAmount: string;
+  monthlyAmount: string;
+  interestRate: string | null;
+  installmentMonths: number | null;
+  installmentStart: string | null;
+  description: string | null;
+  status: "active" | "paid_off" | "cancelled";
+  paidOffAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateDebt {
+  name: string;
+  type: "installment" | "revolving" | "loan" | "other";
+  totalAmount: string;
+  monthlyAmount: string;
+  interestRate?: string;
+  installmentMonths?: number;
+  installmentStart?: string;
+  description?: string;
+}
+
+export interface DebtPayment {
+  id: string;
+  accountId: string;
+  userId: string;
+  totalAmount: string;
+  note: string | null;
+  transactionId: string | null;
+  paidAt: string;
+  createdAt: string;
+}
+
+export interface DebtPaymentAllocation {
+  id: string;
+  paymentId: string;
+  debtId: string;
+  amount: string;
+  principal: string | null;
+  interest: string | null;
+}
+
+export interface DebtPaymentWithAllocations extends DebtPayment {
+  allocations: DebtPaymentAllocation[];
+}
+
+export interface DebtSummaryData {
+  totalDebt: string;
+  totalPaid: string;
+  totalRemaining: string;
+  monthlyCommitment: string;
+  activeAccounts: number;
+  activeDebts: number;
+  upcomingThisMonth: Array<{
+    accountId: string;
+    accountName: string;
+    totalDue: string;
+    billingDay: number;
+    debts: Array<{ name: string; amount: string }>;
+  }>;
+  byAccount: Array<{
+    accountId: string;
+    accountName: string;
+    creditor: string | null;
+    type: string;
+    totalRemaining: string;
+    monthlyCommitment: string;
+    activeDebts: number;
+  }>;
+  byType: Record<string, {
+    accounts: number;
+    totalRemaining: string;
+    monthlyTotal: string;
+  }>;
+}
+
+export interface BillingResult {
+  accountId: string;
+  accountName: string;
+  transactionId: string;
+  amount: string;
 }

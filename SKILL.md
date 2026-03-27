@@ -332,6 +332,174 @@ curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
 
 **Note:** Commands expire after 5 minutes (300 seconds) if not confirmed.
 
+### Debt Accounts
+
+Track credit cards, loans, and other financial obligations. When a debt account is linked to a category and auto-track is enabled, expense transactions with that category automatically create debt payments.
+
+#### List Debt Accounts
+```bash
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  "$KOIN_API_URL/debt-accounts?status=active&type=credit_card"
+```
+
+Query params:
+- `status` — `active` or `closed`
+- `type` — `credit_card`, `loan`, or `other`
+
+Returns accounts with computed totals: `totalDebt`, `totalPaid`, `totalRemaining`, `monthlyCommitment`, `debtsCount`.
+
+#### Create Debt Account
+```bash
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/debt-accounts" \
+  -d '{
+    "name": "BRI Credit Card",
+    "type": "credit_card",
+    "creditor": "BRI",
+    "creditLimit": "50000000.00",
+    "billingDay": 20,
+    "categoryId": "uuid-here",
+    "autoTrack": true
+  }'
+```
+
+Required: `name`, `type`, `billingDay` (1-31)
+Optional: `creditor`, `creditLimit`, `categoryId`, `autoTrack` (default true), `description`
+
+#### Get Debt Account
+```bash
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/debt-accounts/:id"
+```
+
+Returns account detail with all debts and recent payments.
+
+#### Update Debt Account
+```bash
+curl -X PATCH -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/debt-accounts/:id" \
+  -d '{"name": "New Name", "billingDay": 25}'
+```
+
+#### Close Debt Account
+```bash
+curl -X DELETE -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/debt-accounts/:id"
+```
+
+Soft-closes the account (sets status to `closed`). Fails if the account has active debts — all debts must be `paid_off` or `cancelled` first.
+
+### Debts
+
+Individual obligations within a debt account (installments, revolving balances, etc.).
+
+#### List Debts
+```bash
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  "$KOIN_API_URL/debt-accounts/:accountId/debts?status=active"
+```
+
+Query params:
+- `status` — `active`, `paid_off`, or `cancelled`
+
+#### Create Debt
+```bash
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/debt-accounts/:accountId/debts" \
+  -d '{
+    "name": "iPhone 16 Pro",
+    "type": "installment",
+    "totalAmount": "18000000.00",
+    "monthlyAmount": "1500000.00",
+    "installmentMonths": 12,
+    "installmentStart": "2026-01-20T00:00:00Z",
+    "description": "12x 0% installment"
+  }'
+```
+
+Required: `name`, `type`, `totalAmount`, `monthlyAmount`
+- `type` — `installment`, `revolving`, `loan`, or `other`
+- `totalAmount`, `monthlyAmount` — must be positive
+
+Optional: `interestRate` (0-100, annual %), `installmentMonths` (> 0), `installmentStart`, `description`
+
+#### Update Debt
+```bash
+curl -X PATCH -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/debt-accounts/:accountId/debts/:id" \
+  -d '{"monthlyAmount": "2000000.00"}'
+```
+
+#### Cancel Debt
+```bash
+curl -X DELETE -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  "$KOIN_API_URL/debt-accounts/:accountId/debts/:id"
+```
+
+Sets the debt status to `cancelled`.
+
+### Debt Payments (Read-Only)
+
+Payments are auto-generated when expense transactions match a debt account's linked category.
+
+#### List Payments
+```bash
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  "$KOIN_API_URL/debt-accounts/:accountId/payments?limit=20&offset=0"
+```
+
+Query params:
+- `limit` — default 20
+- `offset` — default 0
+
+Returns payments with allocations showing how each payment was distributed across debts.
+
+### Debt Summary
+
+#### Get Summary
+```bash
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/debts/summary"
+```
+
+Returns:
+```json
+{
+  "data": {
+    "totalDebt": "588000000.00",
+    "totalPaid": "42000000.00",
+    "totalRemaining": "546000000.00",
+    "monthlyCommitment": "12400000.00",
+    "activeAccounts": 3,
+    "activeDebts": 7,
+    "upcomingThisMonth": [
+      {
+        "accountId": "uuid",
+        "accountName": "BRI Credit Card",
+        "totalDue": "5200000.00",
+        "billingDay": 20,
+        "debts": [{"name": "iPhone 16", "amount": "1500000.00"}]
+      }
+    ],
+    "byAccount": [...],
+    "byType": {
+      "credit_card": {"accounts": 2, "totalRemaining": "68000000.00", "monthlyTotal": "8400000.00"}
+    }
+  }
+}
+```
+
+#### Check Billing
+```bash
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/debts/check-billing" \
+  -d '{"date": "2026-03-20T00:00:00Z"}'
+```
+
+Creates expense transactions for accounts with billing day matching the given date (only if `autoTrack` is enabled and debts are active). Returns the created transactions.
+
 ### Settings
 
 #### Get User Settings
@@ -389,6 +557,34 @@ curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
 curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
   -H "Content-Type: application/json" \
   "$KOIN_API_URL/rules/RULE_ID/apply" -d '{}'
+```
+
+### Set up debt tracking with auto-payment
+```bash
+# 1. Create a category for the debt account
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/categories" \
+  -d '{"name": "BRI CC Bills", "color": "#8b5cf6"}'
+
+# 2. Create the debt account linked to that category
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/debt-accounts" \
+  -d '{"name": "BRI Credit Card", "type": "credit_card", "creditor": "BRI", "billingDay": 20, "categoryId": "CATEGORY_ID", "autoTrack": true}'
+
+# 3. Add debts to the account
+curl -X POST -H "Authorization: Bearer $KOIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$KOIN_API_URL/debt-accounts/ACCOUNT_ID/debts" \
+  -d '{"name": "iPhone 16 Pro", "type": "installment", "totalAmount": "18000000", "monthlyAmount": "1500000", "installmentMonths": 12}'
+
+# Now any expense transaction with the linked category will auto-create a debt payment
+```
+
+### Check debt summary
+```bash
+curl -H "Authorization: Bearer $KOIN_API_TOKEN" "$KOIN_API_URL/debts/summary"
 ```
 
 ### Check this month's spending

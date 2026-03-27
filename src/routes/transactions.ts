@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { db, transactions, categoryRules } from "../db";
 import { createTransactionSchema, updateTransactionSchema } from "../types";
-import { getRuleMatchingService } from "../services";
+import { getRuleMatchingService, getDebtPaymentService } from "../services";
 import { upsertTransaction } from "../services/transaction-upsert";
 import { getDb } from "../db";
 
@@ -92,6 +92,18 @@ app.post("/", async (c) => {
     date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
   });
   
+  // Auto-create debt payment if category matches a debt account
+  if (categoryId && result.type === "expense") {
+    const debtService = getDebtPaymentService();
+    await debtService.autoCreatePayment(
+      userId,
+      result.id,
+      categoryId,
+      parsed.data.amount,
+      parsed.data.date ? new Date(parsed.data.date) : new Date()
+    );
+  }
+
   return c.json({ data: result }, upserted ? 200 : 201);
 });
 
@@ -128,16 +140,20 @@ app.patch("/:id", async (c) => {
 app.delete("/:id", async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
-  
+
   const result = await db
     .delete(transactions)
     .where(and(eq(transactions.id, id), eq(transactions.userId, userId)))
     .returning();
-  
+
   if (result.length === 0) {
     return c.json({ error: "Transaction not found" }, 404);
   }
-  
+
+  // Remove linked debt payment (cascade deletes allocations)
+  const debtService = getDebtPaymentService();
+  await debtService.removePaymentByTransaction(id);
+
   return c.json({ data: result[0] });
 });
 
