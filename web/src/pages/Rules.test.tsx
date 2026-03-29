@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { renderWithProviders, screen, userEvent, waitFor, within } from "../test/utils";
+import { renderWithProviders, screen, userEvent, waitFor } from "../test/utils";
 import { setAuthState, resetAuthState } from "../test/mocks/handlers";
 import { RulesPage } from "./Rules";
 
