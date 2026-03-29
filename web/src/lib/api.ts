@@ -388,6 +388,47 @@ export const subscriptions = {
     }),
 };
 
+// Rules API
+export const rules = {
+  list: () => request<{ data: Rule[] }>("/rules"),
+
+  get: (id: string) => request<{ data: Rule }>(`/rules/${id}`),
+
+  create: (body: CreateRule) =>
+    request<{ data: Rule }>("/rules", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  update: (id: string, body: UpdateRule) =>
+    request<{ data: Rule }>(`/rules/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  delete: (id: string) =>
+    request<{ data: Rule }>(`/rules/${id}`, {
+      method: "DELETE",
+    }),
+
+  reorder: (ruleIds: string[]) =>
+    request<{ data: { message: string } }>("/rules/reorder", {
+      method: "POST",
+      body: JSON.stringify({ ruleIds }),
+    }),
+
+  apply: (id: string) =>
+    request<{ data: { categorized: number } }>(`/rules/${id}/apply`, {
+      method: "POST",
+    }),
+
+  test: (body: { ruleId?: string; conditions?: RuleCondition[]; transaction: { description: string; amount: number } }) =>
+    request<{ data: { match: boolean } }>("/rules/test", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+};
+
 // Combined API object
 export const api = {
   auth,
@@ -402,6 +443,7 @@ export const api = {
   debtPayments,
   debtSummary,
   subscriptions,
+  rules,
 };
 
 // Types
@@ -747,4 +789,51 @@ export interface BillingCheckResult {
     subscriptionName: string;
     reason: string;
   }>;
+}
+
+// Rule Types
+export interface DescriptionCondition {
+  field: "description";
+  operator: "contains" | "startsWith" | "endsWith" | "exact";
+  value: string;
+  negate?: boolean;
+  caseSensitive?: boolean;
+}
+
+export interface AmountCondition {
+  field: "amount";
+  operator: "eq" | "gt" | "lt" | "gte" | "lte" | "between";
+  value: number;
+  value2?: number;
+}
+
+export type RuleCondition = DescriptionCondition | AmountCondition;
+
+export interface Rule {
+  id: string;
+  userId: string;
+  categoryId: string;
+  name: string;
+  conditions: RuleCondition[];
+  priority: number;
+  enabled: boolean;
+  matchCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateRule {
+  name: string;
+  categoryId: string;
+  conditions: RuleCondition[];
+  priority?: number;
+  enabled?: boolean;
+}
+
+export interface UpdateRule {
+  name?: string;
+  categoryId?: string;
+  conditions?: RuleCondition[];
+  priority?: number;
+  enabled?: boolean;
 }

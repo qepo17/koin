@@ -18,6 +18,7 @@ import { CategoriesPage } from "../pages/Categories";
 import { SettingsPage } from "../pages/Settings";
 import { DebtsPage } from "../pages/Debts";
 import { SubscriptionsPage } from "../pages/Subscriptions";
+import { RulesPage } from "../pages/Rules";
 
 // Root layout
 const rootRoute = createRootRoute({
@@ -149,6 +150,12 @@ const subscriptionsRoute = createRoute({
   component: SubscriptionsPage,
 });
 
+const rulesRoute = createRoute({
+  getParentRoute: () => protectedLayout,
+  path: "/rules",
+  component: RulesPage,
+});
+
 // Build route tree
 export const routeTree = rootRoute.addChildren([
   setupLayout.addChildren([setupRoute]),
@@ -159,6 +166,7 @@ export const routeTree = rootRoute.addChildren([
     categoriesRoute,
     debtsRoute,
     subscriptionsRoute,
+    rulesRoute,
     settingsRoute,
   ]),
 ]);
