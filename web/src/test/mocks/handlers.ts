@@ -62,6 +62,37 @@ const mockCategories = [
   },
 ];
 
+const mockRules = [
+  {
+    id: "rule-1",
+    userId: "user-1",
+    categoryId: "cat-1",
+    name: "Auto-categorize Grab",
+    conditions: [
+      { field: "description", operator: "contains", value: "grab", negate: false, caseSensitive: false },
+    ],
+    priority: 10,
+    enabled: true,
+    matchCount: 12,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "rule-2",
+    userId: "user-1",
+    categoryId: "cat-1",
+    name: "Large expenses",
+    conditions: [
+      { field: "amount", operator: "gt", value: 500000 },
+    ],
+    priority: 5,
+    enabled: true,
+    matchCount: 3,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
 const mockSummary = {
   income: 3000,
   expenses: 25.5,
@@ -247,6 +278,92 @@ export const handlers = [
         createdAt: new Date().toISOString(),
       },
     });
+  }),
+
+  // Rules handlers
+  http.get("/api/rules", () => {
+    if (!isAuthenticated) {
+      return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    return HttpResponse.json({ data: mockRules });
+  }),
+
+  http.get("/api/rules/:id", ({ params }) => {
+    if (!isAuthenticated) {
+      return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const rule = mockRules.find((r) => r.id === params.id);
+    if (!rule) {
+      return HttpResponse.json({ error: "Rule not found" }, { status: 404 });
+    }
+    return HttpResponse.json({ data: rule });
+  }),
+
+  http.post("/api/rules", async ({ request }) => {
+    if (!isAuthenticated) {
+      return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const body = (await request.json()) as Record<string, unknown>;
+    const newRule = {
+      id: `rule-${Date.now()}`,
+      userId: "user-1",
+      matchCount: 0,
+      priority: 0,
+      enabled: true,
+      ...body,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    return HttpResponse.json({ data: newRule }, { status: 201 });
+  }),
+
+  http.put("/api/rules/:id", async ({ request, params }) => {
+    if (!isAuthenticated) {
+      return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const rule = mockRules.find((r) => r.id === params.id);
+    if (!rule) {
+      return HttpResponse.json({ error: "Rule not found" }, { status: 404 });
+    }
+    const body = (await request.json()) as Record<string, unknown>;
+    const updated = { ...rule, ...body, updatedAt: new Date().toISOString() };
+    return HttpResponse.json({ data: updated });
+  }),
+
+  http.delete("/api/rules/:id", ({ params }) => {
+    if (!isAuthenticated) {
+      return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const rule = mockRules.find((r) => r.id === params.id);
+    if (!rule) {
+      return HttpResponse.json({ error: "Rule not found" }, { status: 404 });
+    }
+    return HttpResponse.json({ data: rule });
+  }),
+
+  http.post("/api/rules/reorder", async () => {
+    if (!isAuthenticated) {
+      return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    return HttpResponse.json({ data: mockRules });
+  }),
+
+  http.post("/api/rules/:id/apply", ({ params }) => {
+    if (!isAuthenticated) {
+      return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const rule = mockRules.find((r) => r.id === params.id);
+    if (!rule) {
+      return HttpResponse.json({ error: "Rule not found" }, { status: 404 });
+    }
+    return HttpResponse.json({ data: { categorized: 3 } });
+  }),
+
+  http.post("/api/rules/test", async () => {
+    if (!isAuthenticated) {
+      return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    return HttpResponse.json({ data: { match: true } });
   }),
 ];
 
