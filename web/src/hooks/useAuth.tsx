@@ -49,40 +49,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [isLoading]);
 
-  const loginMutation = useMutation({
-    mutationFn: async ({
-      email,
-      password,
-    }: {
-      email: string;
-      password: string;
-    }) => {
-      const result = await auth.login({ email, password });
-      return result.data.user;
-    },
-    onSuccess: (user) => {
-      queryClient.setQueryData(["auth", "me"], user);
-    },
-  });
-
-  const registerMutation = useMutation({
-    mutationFn: async ({
-      email,
-      password,
-      name,
-    }: {
-      email: string;
-      password: string;
-      name?: string;
-    }) => {
-      const result = await auth.register({ email, password, name });
-      return result.data.user;
-    },
-    onSuccess: (user) => {
-      queryClient.setQueryData(["auth", "me"], user);
-    },
-  });
-
   const logoutMutation = useMutation({
     mutationFn: auth.logout,
     onSuccess: () => {
@@ -92,11 +58,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const login = async (email: string, password: string) => {
-    await loginMutation.mutateAsync({ email, password });
+    const result = await auth.login({ email, password });
+    // Update query data synchronously before returning to ensure
+    // auth state is available immediately for navigation
+    queryClient.setQueryData(["auth", "me"], result.data.user);
   };
 
   const register = async (email: string, password: string, name?: string) => {
-    await registerMutation.mutateAsync({ email, password, name });
+    const result = await auth.register({ email, password, name });
+    // Update query data synchronously before returning
+    queryClient.setQueryData(["auth", "me"], result.data.user);
   };
 
   const logout = async () => {

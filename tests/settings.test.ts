@@ -36,16 +36,6 @@ describe("Settings API", () => {
       expect(result.data.data.privacyMode).toBe(false);
     });
 
-    test("returns user settings with privacyMode defaulting to false", async () => {
-      const { token } = await createTestUser();
-      const api = createApi(token);
-
-      const result = await api.get("/api/settings");
-
-      expect(result.status).toBe(200);
-      expect(result.data.data.privacyMode).toBe(false);
-    });
-
     test("requires authentication", async () => {
       const api = createApi();
       const result = await api.get("/api/settings");
