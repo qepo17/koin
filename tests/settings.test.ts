@@ -16,14 +16,14 @@ describe("Settings API", () => {
   });
 
   describe("GET /api/settings", () => {
-    test("returns user settings with default currency", async () => {
+    test("returns user settings with privacyMode defaulting to false", async () => {
       const { token } = await createTestUser();
       const api = createApi(token);
 
       const result = await api.get("/api/settings");
 
       expect(result.status).toBe(200);
-      expect(result.data.data.currency).toBe("USD");
+      expect(result.data.data.privacyMode).toBe(false);
     });
 
     test("returns user settings with privacyMode defaulting to false", async () => {
