@@ -2,7 +2,9 @@ import { usePrivacy } from "../hooks/usePrivacy";
 import { useCurrency } from "../hooks/useCurrency";
 
 interface MaskedValueProps {
+  /** The value to display. Can be a pre-formatted string (use currency=false) or a raw number (use currency=true) */
   value: number | string;
+  /** When true, applies currency formatting to the value. When false, displays the value as-is (for pre-formatted strings) */
   currency?: boolean;
   className?: string;
   revealKey: string;
