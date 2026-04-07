@@ -8,6 +8,7 @@ import {
 } from "../lib/api";
 import { useAuth } from "../hooks/useAuth";
 import { formatCurrencyWithSign } from "../lib/currency";
+import { MaskedValue } from "../components/MaskedValue";
 
 // Helper to format date for grouping (YYYY-MM-DD)
 function getDateKey(dateStr: string): string {
@@ -252,7 +253,11 @@ export function TransactionsPage() {
                                 : "text-purple-600"
                             }`}
                           >
-                            {formatCurrencyWithSign(tx.amount, currency, tx.type)}
+                            <MaskedValue
+                              value={formatCurrencyWithSign(tx.amount, currency, tx.type)}
+                              revealKey={`tx-list-${tx.id}`}
+                              allowReveal={true}
+                            />
                           </span>
                           <button
                             onClick={() => {

@@ -194,6 +194,12 @@ export const settings = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+  getPrivacy: () => request<{ data: PrivacyStatus }>("/settings/privacy"),
+  setPrivacy: (enabled: boolean) =>
+    request<{ data: PrivacyStatus }>("/settings/privacy", {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    }),
 };
 
 // Skill API
@@ -458,6 +464,11 @@ export interface User {
 export interface Settings {
   currency: string;
   name: string | null;
+  privacyMode: boolean;
+}
+
+export interface PrivacyStatus {
+  enabled: boolean;
 }
 
 export interface Transaction {

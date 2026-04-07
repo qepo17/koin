@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { skill, settings, type ApiToken, type Settings } from "../lib/api";
+import { usePrivacy } from "../hooks/usePrivacy";
 
 const CURRENCIES = [
   { code: "USD", name: "US Dollar", symbol: "$" },
@@ -32,6 +33,8 @@ export function SettingsPage() {
   const [tokenName, setTokenName] = useState("");
   const [tokenExpiry, setTokenExpiry] = useState("never");
   const [currencySaved, setCurrencySaved] = useState(false);
+
+  const { privacyMode, togglePrivacy, isLoading: privacyLoading } = usePrivacy();
 
   const { data: userSettings, isLoading: settingsLoading } = useQuery({
     queryKey: ["settings"],
@@ -187,6 +190,36 @@ export function SettingsPage() {
             <p className="mt-1 text-sm text-gray-500">
               This will be used to display amounts throughout the app.
             </p>
+          </div>
+
+          {/* Privacy Mode */}
+          <div className="pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Privacy Mode
+                </label>
+                <p className="text-sm text-gray-500 mt-1">
+                  Hide sensitive financial information when using the app in public
+                </p>
+              </div>
+              <button
+                onClick={togglePrivacy}
+                disabled={privacyLoading}
+                className={`
+                  relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+                  ${privacyMode ? "bg-emerald-600" : "bg-gray-200"}
+                  ${privacyLoading ? "opacity-50 cursor-not-allowed" : ""}
+                `}
+              >
+                <span
+                  className={`
+                    inline-block h-4 w-4 transform rounded-full bg-white transition-transform
+                    ${privacyMode ? "translate-x-6" : "translate-x-1"}
+                  `}
+                />
+              </button>
+            </div>
           </div>
         </div>
       </div>

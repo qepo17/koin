@@ -8,6 +8,7 @@ import { DateRangePicker, getDefaultDateRange, type DateRange } from "../compone
 import { BalanceTrendChart } from "../components/BalanceTrendChart";
 import { IncomeExpenseChart } from "../components/IncomeExpenseChart";
 import { CategoryDonutChart } from "../components/CategoryDonutChart";
+import { MaskedValue } from "../components/MaskedValue";
 
 // Helper to calculate previous period (same duration before the selected range)
 function getPreviousPeriod(range: DateRange): DateRange {
@@ -236,7 +237,11 @@ export function DashboardPage() {
                       : "text-purple-600"
                   }`}
                 >
-                  {formatCurrencyWithSign(tx.amount, currency, tx.type)}
+                  <MaskedValue
+                    value={formatCurrencyWithSign(tx.amount, currency, tx.type)}
+                    revealKey={`tx-${tx.id}`}
+                    allowReveal={true}
+                  />
                 </span>
               </li>
             ))}
@@ -310,9 +315,12 @@ function StatCard({
         <div className="mt-2 h-8 bg-gray-200 rounded animate-pulse" />
       ) : (
         <>
-          <p className={`mt-2 text-3xl font-bold ${colorClasses[color]}`}>
-            {formattedValue}
-          </p>
+                <MaskedValue
+                  value={formattedValue}
+                  revealKey={`stat-${title}`}
+                  allowReveal={true}
+                  className={`text-3xl font-bold ${colorClasses[color]}`}
+                />
           {change !== null && (
             <ChangeIndicator change={change} label={comparisonLabel} />
           )}
