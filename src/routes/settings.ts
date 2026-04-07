@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { db, users } from "../db";
-import { updateSettingsSchema } from "../types";
+import { updateSettingsSchema, privacyToggleSchema } from "../types";
 
 const app = new Hono<{
   Variables: {
@@ -17,6 +17,7 @@ app.get("/", async (c) => {
     .select({
       currency: users.currency,
       name: users.name,
+      privacyMode: users.privacyMode,
     })
     .from(users)
     .where(eq(users.id, userId));
@@ -45,6 +46,9 @@ app.patch("/", async (c) => {
   if (parsed.data.name !== undefined) {
     updates.name = parsed.data.name;
   }
+  if (parsed.data.privacyMode !== undefined) {
+    updates.privacyMode = parsed.data.privacyMode;
+  }
 
   if (Object.keys(updates).length === 0) {
     return c.json({ error: "No valid fields to update" }, 400);
@@ -59,6 +63,7 @@ app.patch("/", async (c) => {
     .returning({
       currency: users.currency,
       name: users.name,
+      privacyMode: users.privacyMode,
     });
 
   if (!updated) {
@@ -66,6 +71,52 @@ app.patch("/", async (c) => {
   }
 
   return c.json({ data: updated });
+});
+
+// Get privacy mode status
+app.get("/privacy", async (c) => {
+  const userId = c.get("userId");
+
+  const [user] = await db
+    .select({
+      privacyMode: users.privacyMode,
+    })
+    .from(users)
+    .where(eq(users.id, userId));
+
+  if (!user) {
+    return c.json({ error: "User not found" }, 404);
+  }
+
+  return c.json({ data: { enabled: user.privacyMode } });
+});
+
+// Toggle privacy mode
+app.patch("/privacy", async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req.json();
+  const parsed = privacyToggleSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues }, 400);
+  }
+
+  const [updated] = await db
+    .update(users)
+    .set({
+      privacyMode: parsed.data.enabled,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+    .returning({
+      privacyMode: users.privacyMode,
+    });
+
+  if (!updated) {
+    return c.json({ error: "User not found" }, 404);
+  }
+
+  return c.json({ data: { enabled: updated.privacyMode } });
 });
 
 export default app;

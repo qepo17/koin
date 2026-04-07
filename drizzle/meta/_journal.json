@@ -92,6 +92,13 @@
       "when": 1774600087604,
       "tag": "0012_normal_pete_wisdom",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1775538028360,
+      "tag": "0013_friendly_wind_dancer",
+      "breakpoints": true
     }
   ]
 }

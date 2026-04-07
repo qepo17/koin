@@ -128,6 +128,12 @@ export type UpdateSubscription = z.infer<typeof updateSubscriptionSchema>;
 export const updateSettingsSchema = z.object({
   currency: z.string().length(3).toUpperCase().optional(),
   name: z.string().min(1).max(100).optional(),
+  privacyMode: z.boolean().optional(),
+});
+
+export const privacyToggleSchema = z.object({
+  enabled: z.boolean(),
 });
 
 export type UpdateSettings = z.infer<typeof updateSettingsSchema>;
+export type PrivacyToggle = z.infer<typeof privacyToggleSchema>;

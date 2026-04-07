@@ -26,6 +26,16 @@ describe("Settings API", () => {
       expect(result.data.data.currency).toBe("USD");
     });
 
+    test("returns user settings with privacyMode defaulting to false", async () => {
+      const { token } = await createTestUser();
+      const api = createApi(token);
+
+      const result = await api.get("/api/settings");
+
+      expect(result.status).toBe(200);
+      expect(result.data.data.privacyMode).toBe(false);
+    });
+
     test("requires authentication", async () => {
       const api = createApi();
       const result = await api.get("/api/settings");
@@ -55,18 +65,30 @@ describe("Settings API", () => {
       expect(result.data.data.name).toBe("New Name");
     });
 
-    test("updates multiple settings at once", async () => {
+    test("updates privacyMode setting", async () => {
+      const { token } = await createTestUser();
+      const api = createApi(token);
+
+      const result = await api.patch("/api/settings", { privacyMode: true });
+
+      expect(result.status).toBe(200);
+      expect(result.data.data.privacyMode).toBe(true);
+    });
+
+    test("updates multiple settings including privacyMode", async () => {
       const { token } = await createTestUser();
       const api = createApi(token);
 
       const result = await api.patch("/api/settings", {
-        currency: "GBP",
-        name: "Updated Name",
+        currency: "IDR",
+        privacyMode: true,
+        name: "Private User",
       });
 
       expect(result.status).toBe(200);
-      expect(result.data.data.currency).toBe("GBP");
-      expect(result.data.data.name).toBe("Updated Name");
+      expect(result.data.data.currency).toBe("IDR");
+      expect(result.data.data.privacyMode).toBe(true);
+      expect(result.data.data.name).toBe("Private User");
     });
 
     test("validates currency is 3 characters", async () => {
@@ -129,6 +151,83 @@ describe("Settings API", () => {
 
       expect(result.status).toBe(200);
       expect(result.data.data.user.currency).toBe("USD");
+    });
+  });
+
+  describe("GET /api/settings/privacy", () => {
+    test("returns privacy mode status defaulting to false", async () => {
+      const { token } = await createTestUser();
+      const api = createApi(token);
+
+      const result = await api.get("/api/settings/privacy");
+
+      expect(result.status).toBe(200);
+      expect(result.data.data.enabled).toBe(false);
+    });
+
+    test("requires authentication", async () => {
+      const api = createApi();
+      const result = await api.get("/api/settings/privacy");
+
+      expect(result.status).toBe(401);
+    });
+  });
+
+  describe("PATCH /api/settings/privacy", () => {
+    test("toggles privacy mode on", async () => {
+      const { token } = await createTestUser();
+      const api = createApi(token);
+
+      const result = await api.patch("/api/settings/privacy", { enabled: true });
+
+      expect(result.status).toBe(200);
+      expect(result.data.data.enabled).toBe(true);
+    });
+
+    test("toggles privacy mode off", async () => {
+      const { token } = await createTestUser();
+      const api = createApi(token);
+
+      // First enable privacy mode
+      await api.patch("/api/settings/privacy", { enabled: true });
+
+      // Then disable it
+      const result = await api.patch("/api/settings/privacy", { enabled: false });
+
+      expect(result.status).toBe(200);
+      expect(result.data.data.enabled).toBe(false);
+    });
+
+    test("rejects invalid request body", async () => {
+      const { token } = await createTestUser();
+      const api = createApi(token);
+
+      const result = await api.patch("/api/settings/privacy", { enabled: "yes" });
+
+      expect(result.status).toBe(400);
+    });
+
+    test("requires authentication", async () => {
+      const api = createApi();
+      const result = await api.patch("/api/settings/privacy", { enabled: true });
+
+      expect(result.status).toBe(401);
+    });
+
+    test("persists across requests", async () => {
+      const { token } = await createTestUser();
+      const api = createApi(token);
+
+      // Enable privacy mode
+      await api.patch("/api/settings/privacy", { enabled: true });
+
+      // Verify via GET endpoint
+      const result = await api.get("/api/settings/privacy");
+      expect(result.data.data.enabled).toBe(true);
+
+      // Verify via main settings endpoint
+      const settingsResult = await api.get("/api/settings");
+      expect(settingsResult.data.data.privacyMode).toBe(true);
     });
   });
 });

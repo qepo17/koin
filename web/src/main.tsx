@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@ta
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routes";
 import { AuthProvider } from "./hooks/useAuth";
+import { PrivacyProvider } from "./hooks/usePrivacy";
 import { ApiError } from "./lib/api";
 import "./index.css";
 
@@ -59,7 +60,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <RouterProvider router={router} />
+        <PrivacyProvider>
+          <RouterProvider router={router} />
+        </PrivacyProvider>
       </AuthProvider>
     </QueryClientProvider>
   </React.StrictMode>

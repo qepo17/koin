@@ -2,6 +2,7 @@ import { render, type RenderOptions } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRouter, createMemoryHistory, createRootRoute, createRoute, Outlet } from "@tanstack/react-router";
 import { AuthProvider } from "../hooks/useAuth";
+import { PrivacyProvider } from "../hooks/usePrivacy";
 import type { ReactElement, ReactNode } from "react";
 
 // Create a fresh query client for each test
@@ -54,7 +55,9 @@ export function renderWithProviders(
     return (
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <RouterProvider router={router} />
+          <PrivacyProvider>
+            <RouterProvider router={router} />
+          </PrivacyProvider>
         </AuthProvider>
       </QueryClientProvider>
     );
