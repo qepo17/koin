@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import { auth } from "../lib/api";
 import { Layout } from "../components/Layout";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { LoginPage } from "../pages/Login";
 import { RegisterPage } from "../pages/Register";
 import { SetupPage } from "../pages/Setup";
@@ -80,9 +81,11 @@ const protectedLayout = createRoute({
     }
 
     return (
-      <Layout>
-        <Outlet />
-      </Layout>
+      <ErrorBoundary>
+        <Layout>
+          <Outlet />
+        </Layout>
+      </ErrorBoundary>
     );
   },
 });

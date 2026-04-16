@@ -1,4 +1,5 @@
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
+const DEFAULT_TIMEOUT = 10000; // 10 seconds
 
 export class ApiError extends Error {
   constructor(
@@ -10,13 +11,12 @@ export class ApiError extends Error {
   }
 }
 
-// Token refresh state to prevent concurrent refresh attempts
-let isRefreshing = false;
+// Singleton promise pattern for token refresh to prevent race conditions
 let refreshPromise: Promise<boolean> | null = null;
 
 async function attemptTokenRefresh(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE}/auth/refresh`, {
+    const response = await fetchWithTimeout(`${API_BASE}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -28,29 +28,56 @@ async function attemptTokenRefresh(): Promise<boolean> {
 }
 
 async function refreshToken(): Promise<boolean> {
-  if (isRefreshing && refreshPromise) {
-    return refreshPromise;
+  // Singleton promise pattern: if a refresh is already in progress, wait for it
+  if (!refreshPromise) {
+    refreshPromise = attemptTokenRefresh().finally(() => {
+      refreshPromise = null;
+    });
   }
-  isRefreshing = true;
-  refreshPromise = attemptTokenRefresh().finally(() => {
-    isRefreshing = false;
-    refreshPromise = null;
-  });
   return refreshPromise;
+}
+
+// Fetch with timeout using AbortController
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit & { timeout?: number } = {}
+): Promise<Response> {
+  const { timeout = DEFAULT_TIMEOUT, ...fetchOptions } = options;
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller.signal,
+    });
+    return response;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Request timeout after ${timeout}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function request<T>(
   path: string,
-  options: RequestInit = {},
+  options: RequestInit & { timeout?: number } = {},
   _isRetry = false
 ): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
+  const { timeout, ...requestOptions } = options;
+  
+  const response = await fetchWithTimeout(`${API_BASE}${path}`, {
+    ...requestOptions,
     headers: {
       "Content-Type": "application/json",
-      ...options.headers,
+      ...requestOptions.headers,
     },
     credentials: "include", // Include cookies for auth
+    timeout,
   });
 
   // If we get a 401 and this isn't already a retry, attempt token refresh
