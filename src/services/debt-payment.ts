@@ -2,6 +2,7 @@ import { eq, and } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type * as schema from "../db/schema";
 import { debtAccounts, debts, debtPayments, debtPaymentAllocations } from "../db/schema";
+import { Decimal } from "decimal.js";
 
 export type DebtPaymentService = ReturnType<typeof createDebtPaymentService>;
 
@@ -56,12 +57,13 @@ export function createDebtPaymentService(db: PostgresJsDatabase<typeof schema>) 
         .orderBy(debts.createdAt);
 
       if (activeDebts.length > 0) {
-        let remaining = Number(amount);
+        let remaining = new Decimal(amount);
 
         for (const debt of activeDebts) {
-          if (remaining <= 0) break;
-          const allocAmount = Math.min(remaining, Number(debt.monthlyAmount));
-          remaining -= allocAmount;
+          if (remaining.lte(0)) break;
+          const debtMonthly = new Decimal(debt.monthlyAmount);
+          const allocAmount = remaining.lt(debtMonthly) ? remaining : debtMonthly;
+          remaining = remaining.minus(allocAmount);
 
           await tx.insert(debtPaymentAllocations).values({
             paymentId: payment.id,
@@ -71,7 +73,7 @@ export function createDebtPaymentService(db: PostgresJsDatabase<typeof schema>) 
         }
 
         // Excess goes to first debt
-        if (remaining > 0) {
+        if (remaining.gt(0)) {
           const firstAllocation = await tx
             .select()
             .from(debtPaymentAllocations)
@@ -83,7 +85,7 @@ export function createDebtPaymentService(db: PostgresJsDatabase<typeof schema>) 
             );
 
           if (firstAllocation.length > 0) {
-            const newAmount = Number(firstAllocation[0].amount) + remaining;
+            const newAmount = new Decimal(firstAllocation[0].amount).plus(remaining);
             await tx
               .update(debtPaymentAllocations)
               .set({ amount: newAmount.toFixed(2) })
