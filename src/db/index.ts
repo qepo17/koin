@@ -11,7 +11,11 @@ export function getDb(): PostgresJsDatabase<typeof schema> {
     if (!connectionString) {
       throw new Error("DATABASE_URL environment variable is required");
     }
-    client = postgres(connectionString);
+    client = postgres(connectionString, {
+      max: 20,
+      idle_timeout: 10,
+      connect_timeout: 30,
+    });
     _db = drizzle(client, { schema });
   }
   return _db;
