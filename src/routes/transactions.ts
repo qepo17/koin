@@ -11,7 +11,11 @@ const app = new Hono();
 // List transactions (scoped to user)
 app.get("/", async (c) => {
   const userId = c.get("userId");
-  const { startDate, endDate, type, categoryId } = c.req.query();
+  const { startDate, endDate, type, categoryId, limit: limitParam, offset: offsetParam } = c.req.query();
+  
+  // Pagination with max limit protection (Issue #121)
+  const limit = Math.min(parseInt(limitParam || "100"), 500);
+  const offset = parseInt(offsetParam || "0");
   
   const conditions = [eq(transactions.userId, userId)];
   
@@ -24,7 +28,9 @@ app.get("/", async (c) => {
     .select()
     .from(transactions)
     .where(and(...conditions))
-    .orderBy(desc(transactions.date));
+    .orderBy(desc(transactions.date))
+    .limit(limit)
+    .offset(offset);
     
   return c.json({ data: result });
 });
