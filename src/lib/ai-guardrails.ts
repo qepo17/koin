@@ -287,11 +287,13 @@ export interface AuditLogEntry {
   success: boolean;
 }
 
+const MAX_AUDIT_LOG_SIZE = 1000;
 const auditLog: AuditLogEntry[] = [];
 
 /**
  * Log an AI operation for audit purposes.
  * In production, this should write to a persistent store.
+ * Uses circular buffer to prevent unbounded memory growth (DoS protection).
  */
 export function logAuditEntry(entry: Omit<AuditLogEntry, "timestamp">): void {
   const fullEntry: AuditLogEntry = {
@@ -300,6 +302,11 @@ export function logAuditEntry(entry: Omit<AuditLogEntry, "timestamp">): void {
   };
 
   auditLog.push(fullEntry);
+
+  // Circular buffer: remove oldest entries when exceeding max size
+  if (auditLog.length > MAX_AUDIT_LOG_SIZE) {
+    auditLog.shift();
+  }
 
   // In production, also log to external system
   if (process.env.NODE_ENV !== "test") {

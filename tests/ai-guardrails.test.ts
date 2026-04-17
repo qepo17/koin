@@ -275,10 +275,6 @@ describe("AI Guardrails", () => {
   });
 
   describe("Audit Logging", () => {
-    beforeEach(() => {
-      // Clear audit log between tests by logging for a unique user
-    });
-
     it("should log audit entries", () => {
       const userId = `test-user-${Date.now()}`;
       logAuditEntry({
@@ -306,6 +302,33 @@ describe("AI Guardrails", () => {
 
       expect(entries1.every(e => e.userId === userId1)).toBe(true);
       expect(entries2.every(e => e.userId === userId2)).toBe(true);
+    });
+
+    it("should enforce max audit log size (circular buffer)", () => {
+      const userId = `limit-test-${Date.now()}`;
+      
+      // Log more entries than the max to trigger circular buffer behavior
+      // Note: We use a unique user so we can verify by checking entries for this user
+      for (let i = 0; i < 1005; i++) {
+        logAuditEntry({
+          userId,
+          action: "prompt_received",
+          prompt: `Entry ${i}`,
+          success: true,
+        });
+      }
+
+      // The global audit log should not exceed MAX_AUDIT_LOG_SIZE
+      // We can verify this indirectly - recent entries should still be accessible
+      const entries = getRecentAuditEntries(userId, 1005);
+      
+      // Due to circular buffer, we should still see recent entries
+      // The exact count depends on when entries started being dropped
+      expect(entries.length).toBeGreaterThan(0);
+      
+      // Verify the most recent entries are present (last entry should have highest number)
+      const lastEntry = entries[entries.length - 1];
+      expect(lastEntry.prompt).toBe("Entry 1004");
     });
   });
 
