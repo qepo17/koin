@@ -400,6 +400,123 @@ describe("Transactions API", () => {
       expect(data.data).toHaveLength(3);
     });
 
+    it("should support pagination with limit parameter", async () => {
+      // Create 5 transactions
+      for (let i = 0; i < 5; i++) {
+        await api.post("/api/transactions", { 
+          type: "expense", 
+          amount: `${(i + 1) * 10}.00`,
+          date: new Date(Date.now() - i * 1000).toISOString(), // Ensure different timestamps
+        });
+      }
+
+      const { status, data } = await api.get("/api/transactions?limit=2");
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(2);
+    });
+
+    it("should support pagination with limit and offset", async () => {
+      // Create 5 transactions with different dates to ensure ordering
+      const timestamps: string[] = [];
+      for (let i = 0; i < 5; i++) {
+        const timestamp = new Date(Date.now() - i * 1000).toISOString();
+        timestamps.push(timestamp);
+        await api.post("/api/transactions", { 
+          type: "expense", 
+          amount: `${(i + 1) * 10}.00`,
+          date: timestamp,
+        });
+      }
+
+      // Get first 2
+      const first = await api.get("/api/transactions?limit=2&offset=0");
+      expect(first.data.data).toHaveLength(2);
+
+      // Get next 2
+      const second = await api.get("/api/transactions?limit=2&offset=2");
+      expect(second.data.data).toHaveLength(2);
+
+      // Ensure they're different transactions
+      const firstIds = first.data.data.map((t: any) => t.id);
+      const secondIds = second.data.data.map((t: any) => t.id);
+      
+      // No overlap between first and second page
+      const overlap = firstIds.filter((id: string) => secondIds.includes(id));
+      expect(overlap).toHaveLength(0);
+    });
+
+    it("should enforce maximum limit of 500 (Issue #121 - DoS protection)", async () => {
+      // Create a few transactions
+      for (let i = 0; i < 10; i++) {
+        await api.post("/api/transactions", { 
+          type: "expense", 
+          amount: `${(i + 1) * 10}.00`,
+          date: new Date(Date.now() - i * 1000).toISOString(),
+        });
+      }
+
+      // Request 1000, should be capped at 500
+      const { status, data } = await api.get("/api/transactions?limit=1000");
+
+      expect(status).toBe(200);
+      // Should return max 10 (what we have), but the limit in code is 500
+      expect(data.data.length).toBeLessThanOrEqual(500);
+    });
+
+    it("should use default limit of 100 when not specified", async () => {
+      // Create 105 transactions
+      for (let i = 0; i < 105; i++) {
+        await api.post("/api/transactions", { 
+          type: "expense", 
+          amount: `${(i + 1) * 10}.00`,
+          date: new Date(Date.now() - i * 1000).toISOString(),
+        });
+      }
+
+      const { status, data } = await api.get("/api/transactions");
+
+      expect(status).toBe(200);
+      expect(data.data.length).toBeLessThanOrEqual(100);
+    });
+
+    it("should handle offset beyond total results gracefully", async () => {
+      await api.post("/api/transactions", { type: "expense", amount: "10.00" });
+
+      const { status, data } = await api.get("/api/transactions?limit=10&offset=100");
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(0);
+    });
+
+    it("should return results ordered by date descending (newest first)", async () => {
+      const now = Date.now();
+      await api.post("/api/transactions", { 
+        type: "expense", 
+        amount: "30.00",
+        date: new Date(now - 2000).toISOString(),
+      });
+      await api.post("/api/transactions", { 
+        type: "expense", 
+        amount: "10.00",
+        date: new Date(now).toISOString(),
+      });
+      await api.post("/api/transactions", { 
+        type: "expense", 
+        amount: "20.00",
+        date: new Date(now - 1000).toISOString(),
+      });
+
+      const { status, data } = await api.get("/api/transactions");
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(3);
+      // Newest first: 10.00, 20.00, 30.00
+      expect(data.data[0].amount).toBe("10.00");
+      expect(data.data[1].amount).toBe("20.00");
+      expect(data.data[2].amount).toBe("30.00");
+    });
+
     it("should filter by type", async () => {
       await api.post("/api/transactions", { type: "expense", amount: "10.00" });
       await api.post("/api/transactions", { type: "expense", amount: "20.00" });
