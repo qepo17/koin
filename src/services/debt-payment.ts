@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type * as schema from "../db/schema";
 import { debtAccounts, debts, debtPayments, debtPaymentAllocations } from "../db/schema";
@@ -70,23 +70,26 @@ export function createDebtPaymentService(db: PostgresJsDatabase<typeof schema>) 
           });
         }
 
-        // Excess goes to first debt
+        // Excess goes to first debt - use atomic SQL update to prevent race conditions
         if (remaining > 0) {
           const firstAllocation = await tx
-            .select()
+            .select({ id: debtPaymentAllocations.id })
             .from(debtPaymentAllocations)
             .where(
               and(
                 eq(debtPaymentAllocations.paymentId, payment.id),
                 eq(debtPaymentAllocations.debtId, activeDebts[0].id)
               )
-            );
+            )
+            .limit(1);
 
           if (firstAllocation.length > 0) {
-            const newAmount = Number(firstAllocation[0].amount) + remaining;
+            // Use atomic SQL addition to prevent read-modify-write race condition
             await tx
               .update(debtPaymentAllocations)
-              .set({ amount: newAmount.toFixed(2) })
+              .set({
+                amount: sql`${debtPaymentAllocations.amount} + ${remaining}`,
+              })
               .where(eq(debtPaymentAllocations.id, firstAllocation[0].id));
           }
         }
