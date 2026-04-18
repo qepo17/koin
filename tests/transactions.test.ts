@@ -444,6 +444,86 @@ describe("Transactions API", () => {
       expect(status).toBe(200);
       expect(data.data).toHaveLength(0);
     });
+
+    // Pagination tests
+    it("should return default limit of 100 when no limit specified", async () => {
+      // Create 5 transactions
+      for (let i = 0; i < 5; i++) {
+        await api.post("/api/transactions", { type: "expense", amount: "10.00", description: `Tx ${i}` });
+      }
+
+      const { status, data } = await api.get("/api/transactions");
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(5);
+      expect(data.pagination).toBeDefined();
+      expect(data.pagination.limit).toBe(100);
+      expect(data.pagination.offset).toBe(0);
+      expect(data.pagination.total).toBe(5);
+    });
+
+    it("should respect custom limit parameter", async () => {
+      // Create 10 transactions
+      for (let i = 0; i < 10; i++) {
+        await api.post("/api/transactions", { type: "expense", amount: "10.00", description: `Tx ${i}` });
+      }
+
+      const { status, data } = await api.get("/api/transactions?limit=5");
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(5);
+      expect(data.pagination.limit).toBe(5);
+      expect(data.pagination.total).toBe(10);
+    });
+
+    it("should cap limit at maximum of 500", async () => {
+      // Request limit of 1000, should be capped to 500
+      const { status, data } = await api.get("/api/transactions?limit=1000");
+
+      expect(status).toBe(200);
+      expect(data.pagination.limit).toBe(500);
+    });
+
+    it("should respect offset parameter", async () => {
+      // Create 5 transactions
+      for (let i = 0; i < 5; i++) {
+        await api.post("/api/transactions", { type: "expense", amount: "10.00", description: `Tx ${i}` });
+      }
+
+      const { status, data } = await api.get("/api/transactions?limit=2&offset=2");
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(2);
+      expect(data.pagination.limit).toBe(2);
+      expect(data.pagination.offset).toBe(2);
+      expect(data.pagination.total).toBe(5);
+    });
+
+    it("should handle offset beyond total count", async () => {
+      await api.post("/api/transactions", { type: "expense", amount: "10.00" });
+
+      const { status, data } = await api.get("/api/transactions?offset=100");
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(0);
+      expect(data.pagination.offset).toBe(100);
+      expect(data.pagination.total).toBe(1);
+    });
+
+    it("should work with filters and pagination together", async () => {
+      // Create mixed transactions
+      await api.post("/api/transactions", { type: "expense", amount: "10.00", description: "Expense 1" });
+      await api.post("/api/transactions", { type: "expense", amount: "20.00", description: "Expense 2" });
+      await api.post("/api/transactions", { type: "income", amount: "100.00", description: "Income 1" });
+      await api.post("/api/transactions", { type: "income", amount: "200.00", description: "Income 2" });
+
+      const { status, data } = await api.get("/api/transactions?type=expense&limit=1&offset=1");
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(1);
+      expect(data.data[0].type).toBe("expense");
+      expect(data.pagination.total).toBe(2); // Only 2 expense transactions
+    });
   });
 
   describe("GET /api/transactions/:id", () => {
