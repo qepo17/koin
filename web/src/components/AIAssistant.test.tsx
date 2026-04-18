@@ -200,6 +200,58 @@ describe("AIAssistant", () => {
     });
   });
 
+  it("shows error when countdown expires", async () => {
+    (ai.interpret as Mock).mockResolvedValue({
+      data: {
+        commandId: "cmd-1",
+        interpretation: "Put coffee transactions in Food category",
+        preview: {
+          matchCount: 1,
+          records: [
+            {
+              id: "tx-1",
+              description: "Morning coffee",
+              amount: "5.00",
+              date: "2026-02-20",
+              categoryId: null,
+              categoryName: null,
+              type: "expense" as const,
+            },
+          ],
+        },
+        changes: { categoryId: "cat-food", categoryName: "Food" },
+        expiresIn: 1, // Short expiration for testing
+      },
+    });
+
+    render(<AIAssistant isOpen={true} onClose={() => {}} />, {
+      wrapper: createWrapper(),
+    });
+
+    // Enter prompt and submit
+    const input = getPromptInput();
+    fireEvent.change(input, { target: { value: "Put coffee in Food" } });
+    fireEvent.click(screen.getByRole("button", { name: /preview changes/i }));
+
+    // Wait for preview to appear
+    await waitFor(() => {
+      expect(screen.getByText(/will update 1 transaction/i)).toBeInTheDocument();
+    });
+
+    // Verify countdown is shown
+    expect(screen.getByText(/expires in/i)).toBeInTheDocument();
+
+    // Wait for expiration (timer runs every 1s, countdown starts at 1)
+    // The expiration effect should trigger after countdown reaches 0
+    await waitFor(
+      () => {
+        expect(screen.getByText(/something went wrong/i)).toBeInTheDocument();
+        expect(screen.getByText(/command expired/i)).toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
+  });
+
   it("resets state when closed and reopened", async () => {
     const onClose = vi.fn();
     const { rerender } = render(<AIAssistant isOpen={true} onClose={onClose} />, {
