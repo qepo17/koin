@@ -72,24 +72,25 @@ export function createDebtPaymentService(db: PostgresJsDatabase<typeof schema>) 
           });
         }
 
-        // Excess goes to first debt
+        // Excess goes to first debt - use atomic SQL update to prevent race conditions
         if (remaining.gt(0)) {
           const firstAllocation = await tx
-            .select()
+            .select({ id: debtPaymentAllocations.id })
             .from(debtPaymentAllocations)
             .where(
               and(
                 eq(debtPaymentAllocations.paymentId, payment.id),
                 eq(debtPaymentAllocations.debtId, activeDebts[0].id)
               )
-            );
+            )
+            .limit(1);
 
           if (firstAllocation.length > 0) {
-            const currentAmount = new Decimal(firstAllocation[0].amount);
-            const newAmount = currentAmount.plus(remaining);
             await tx
               .update(debtPaymentAllocations)
-              .set({ amount: newAmount.toFixed(2) })
+              .set({
+                amount: sql`${debtPaymentAllocations.amount} + ${remaining.toFixed(2)}`,
+              })
               .where(eq(debtPaymentAllocations.id, firstAllocation[0].id));
           }
         }
