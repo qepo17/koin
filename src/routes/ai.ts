@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { eq, and, ilike, gte, lte, gt, inArray, sql, desc, type SQL } from "drizzle-orm";
-import { db, transactions, categories, aiCommands } from "../db";
+import { db, transactions, categories, aiCommands, rateLimits } from "../db";
 import { createOpenRouterClient, OpenRouterValidationError, OpenRouterConfigError } from "../lib/openrouter";
 import { enforceUserScope, logAuditEntry } from "../lib/ai-guardrails";
 import type { TransactionFilters, AIAction } from "../types/ai";
@@ -15,24 +15,61 @@ const COMMAND_EXPIRY_MS = COMMAND_EXPIRY_SECONDS * 1000;
 // Rate limiting: 10 requests per minute per user
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 10;
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_ENDPOINT = "ai_command";
 
-function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
-  const now = Date.now();
-  const userLimit = rateLimitMap.get(userId);
+async function checkRateLimit(userId: string): Promise<{ allowed: boolean; retryAfter?: number }> {
+  const now = new Date();
 
-  if (!userLimit || now > userLimit.resetAt) {
-    // Reset or initialize
-    rateLimitMap.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+  // Clean up expired rate limit entries (TTL cleanup)
+  // This is done opportunistically - in production, a background job could also do this
+  await db.delete(rateLimits).where(sql`${rateLimits.resetAt} < ${now}`);
+
+  // Try to find existing rate limit entry for this user/endpoint
+  const [existingLimit] = await db
+    .select()
+    .from(rateLimits)
+    .where(and(
+      eq(rateLimits.userId, userId),
+      eq(rateLimits.endpoint, RATE_LIMIT_ENDPOINT)
+    ))
+    .limit(1);
+
+  if (!existingLimit || now > existingLimit.resetAt) {
+    // No existing limit or window has expired - create/reset
+    const resetAt = new Date(now.getTime() + RATE_LIMIT_WINDOW_MS);
+
+    if (existingLimit) {
+      // Update existing record
+      await db
+        .update(rateLimits)
+        .set({ count: 1, resetAt, updatedAt: now })
+        .where(eq(rateLimits.id, existingLimit.id));
+    } else {
+      // Create new record
+      await db
+        .insert(rateLimits)
+        .values({
+          userId,
+          endpoint: RATE_LIMIT_ENDPOINT,
+          count: 1,
+          resetAt,
+        });
+    }
     return { allowed: true };
   }
 
-  if (userLimit.count >= RATE_LIMIT_MAX_REQUESTS) {
-    const retryAfter = Math.ceil((userLimit.resetAt - now) / 1000);
+  // Check if limit exceeded
+  if (existingLimit.count >= RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfter = Math.ceil((existingLimit.resetAt.getTime() - now.getTime()) / 1000);
     return { allowed: false, retryAfter };
   }
 
-  userLimit.count++;
+  // Increment count
+  await db
+    .update(rateLimits)
+    .set({ count: existingLimit.count + 1, updatedAt: now })
+    .where(eq(rateLimits.id, existingLimit.id));
+
   return { allowed: true };
 }
 
@@ -142,7 +179,7 @@ app.post("/command", async (c) => {
   const userId = c.get("userId");
 
   // Rate limiting
-  const rateCheck = checkRateLimit(userId);
+  const rateCheck = await checkRateLimit(userId);
   if (!rateCheck.allowed) {
     c.header("Retry-After", String(rateCheck.retryAfter));
     return c.json({ error: "Rate limit exceeded", retryAfter: rateCheck.retryAfter }, 429);
@@ -538,9 +575,13 @@ app.post("/command/:id/cancel", async (c) => {
   });
 });
 
-// Export for testing - reset rate limit map
-export function resetRateLimits() {
-  rateLimitMap.clear();
+// Export for testing - reset/clear rate limits for a user
+export async function resetRateLimits(userId?: string) {
+  if (userId) {
+    await db.delete(rateLimits).where(eq(rateLimits.userId, userId));
+  } else {
+    await db.delete(rateLimits);
+  }
 }
 
 export default app;
