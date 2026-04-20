@@ -218,3 +218,17 @@ export const categoryRules = pgTable("category_rules", {
   userIdIdx: index("idx_category_rules_user_id").on(table.userId),
   userPriorityIdx: index("idx_category_rules_priority").on(table.userId, table.priority),
 }));
+
+// Rate limits table - for distributed rate limiting across server instances
+export const rateLimits = pgTable("rate_limits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  endpoint: text("endpoint").notNull(), // e.g., "ai_command"
+  count: integer("count").notNull().default(0),
+  resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  userEndpointIdx: index("idx_rate_limits_user_endpoint").on(table.userId, table.endpoint),
+  resetAtIdx: index("idx_rate_limits_reset_at").on(table.resetAt),
+}));
