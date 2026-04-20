@@ -18,6 +18,7 @@ import { CategoriesPage } from "../pages/Categories";
 import { SettingsPage } from "../pages/Settings";
 import { DebtsPage } from "../pages/Debts";
 import { SubscriptionsPage } from "../pages/Subscriptions";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { RulesPage } from "../pages/Rules";
 
 // Root layout
@@ -80,9 +81,11 @@ const protectedLayout = createRoute({
     }
 
     return (
-      <Layout>
-        <Outlet />
-      </Layout>
+      <ErrorBoundary>
+        <Layout>
+          <Outlet />
+        </Layout>
+      </ErrorBoundary>
     );
   },
 });
