@@ -19,6 +19,10 @@ import {
   REFRESH_TOKEN_EXPIRES_IN,
 } from "../lib/auth";
 
+// Dummy bcrypt hash for timing-safe comparison when user not found
+// This is a hash of "dummy_password_for_timing_protection" with cost 10
+const DUMMY_HASH = "$2b$10$vI8aWBnW3fID.ZQ4/zo1G.q1lRps.9cGLcZEiGDMVr5yUP1KUOYTa";
+
 const app = new Hono();
 
 // Rate limiter for auth endpoints: 5 requests per minute per IP
@@ -123,13 +127,11 @@ app.post("/login", authRateLimiter, async (c) => {
     .from(users)
     .where(eq(users.email, email.toLowerCase()));
 
-  if (!user) {
-    return c.json({ error: "Invalid email or password" }, 401);
-  }
+  // Always perform bcrypt comparison to prevent timing attacks
+  const hashToCompare = user?.passwordHash ?? DUMMY_HASH;
+  const valid = await verifyPassword(password, hashToCompare);
 
-  // Verify password
-  const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) {
+  if (!user || !valid) {
     return c.json({ error: "Invalid email or password" }, 401);
   }
 
