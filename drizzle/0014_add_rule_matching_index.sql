@@ -1,0 +1,1 @@
+CREATE INDEX "idx_category_rules_user_enabled_priority" ON "category_rules" USING btree ("user_id","enabled","priority");
