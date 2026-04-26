@@ -288,6 +288,7 @@ export interface AuditLogEntry {
 }
 
 const auditLog: AuditLogEntry[] = [];
+const MAX_AUDIT_LOG_SIZE = 1000;
 
 /**
  * Log an AI operation for audit purposes.
@@ -300,6 +301,11 @@ export function logAuditEntry(entry: Omit<AuditLogEntry, "timestamp">): void {
   };
 
   auditLog.push(fullEntry);
+
+  // Circular buffer: remove oldest entry if limit exceeded
+  if (auditLog.length > MAX_AUDIT_LOG_SIZE) {
+    auditLog.shift();
+  }
 
   // In production, also log to external system
   if (process.env.NODE_ENV !== "test") {

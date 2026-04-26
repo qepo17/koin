@@ -1,4 +1,5 @@
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
+const DEFAULT_TIMEOUT = 10000; // 10 seconds
 
 export class ApiError extends Error {
   constructor(
@@ -10,13 +11,37 @@ export class ApiError extends Error {
   }
 }
 
-// Token refresh state to prevent concurrent refresh attempts
-let isRefreshing = false;
+// Token refresh state using singleton promise pattern to prevent race conditions
 let refreshPromise: Promise<boolean> | null = null;
+
+// Helper to create a fetch with timeout
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs: number = DEFAULT_TIMEOUT
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Request timeout after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 async function attemptTokenRefresh(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE}/auth/refresh`, {
+    const response = await fetchWithTimeout(`${API_BASE}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -28,14 +53,16 @@ async function attemptTokenRefresh(): Promise<boolean> {
 }
 
 async function refreshToken(): Promise<boolean> {
-  if (isRefreshing && refreshPromise) {
+  // Singleton pattern: if a refresh is already in progress, return the existing promise
+  if (refreshPromise) {
     return refreshPromise;
   }
-  isRefreshing = true;
+  
+  // Create new refresh promise
   refreshPromise = attemptTokenRefresh().finally(() => {
-    isRefreshing = false;
     refreshPromise = null;
   });
+  
   return refreshPromise;
 }
 
@@ -44,7 +71,7 @@ async function request<T>(
   options: RequestInit = {},
   _isRetry = false
 ): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetchWithTimeout(`${API_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",

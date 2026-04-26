@@ -3,6 +3,7 @@ import { eq, and, ilike, gte, lte, gt, inArray, sql, desc, type SQL } from "driz
 import { db, transactions, categories, aiCommands } from "../db";
 import { createOpenRouterClient, OpenRouterValidationError, OpenRouterConfigError } from "../lib/openrouter";
 import { enforceUserScope, logAuditEntry } from "../lib/ai-guardrails";
+import { escapeLikePattern } from "../lib/sql-escape";
 import type { TransactionFilters, AIAction } from "../types/ai";
 import { z } from "zod";
 
@@ -46,7 +47,8 @@ function buildFilterConditions(filters: TransactionFilters, userId: string): SQL
   const conditions: SQL[] = [eq(transactions.userId, userId)];
 
   if (filters.description_contains) {
-    conditions.push(ilike(transactions.description, `%${filters.description_contains}%`));
+    const safe = escapeLikePattern(filters.description_contains);
+    conditions.push(ilike(transactions.description, `%${safe}%`));
   }
 
   if (filters.amount_equals !== undefined) {
@@ -76,19 +78,21 @@ async function findMatchingTransactions(filters: TransactionFilters, userId: str
 
   // If category_name filter is specified, use trigram similarity to find best match
   if (filters.category_name) {
+    const safeCategory = escapeLikePattern(filters.category_name);
+
     // Use pg_trgm similarity - threshold 0.3 is a good balance for fuzzy matching
     // Order by similarity to get the best match
     const category = await db
-      .select({ 
+      .select({
         id: categories.id,
-        similarity: sql<number>`similarity(${categories.name}, ${filters.category_name})`.as('similarity')
+        similarity: sql<number>`similarity(${categories.name}, ${safeCategory})`.as('similarity')
       })
       .from(categories)
       .where(and(
         eq(categories.userId, userId),
-        sql`similarity(${categories.name}, ${filters.category_name}) > 0.3`
+        sql`similarity(${categories.name}, ${safeCategory}) > 0.3`
       ))
-      .orderBy(desc(sql`similarity(${categories.name}, ${filters.category_name})`))
+      .orderBy(desc(sql`similarity(${categories.name}, ${safeCategory})`))
       .limit(1);
 
     if (category.length > 0) {
