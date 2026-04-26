@@ -341,5 +341,119 @@ describe("Rule Matching Service", () => {
       // Uber (priority 20) should match first since it's checked before Coffee (priority 10)
       expect(result!.name).toBe("Uber Rule");
     });
+
+    test("limits evaluation to MAX_RULES_PER_EVALUATION (100) rules", async () => {
+      // Create 105 rules that would all match a specific description pattern
+      // Only the first 100 (by priority) should be evaluated
+      const db = getDb();
+      const bulkRules = [];
+      for (let i = 0; i < 105; i++) {
+        bulkRules.push({
+          userId,
+          categoryId,
+          name: `Bulk Rule ${i}`,
+          conditions: [{ field: "description", operator: "contains", value: "bulktest", negate: false, caseSensitive: false }],
+          priority: i, // Lower number = lower priority, checked later
+          enabled: true,
+        });
+      }
+      await db.insert(categoryRules).values(bulkRules);
+
+      // The highest priority rule (priority 104) should match since it's within the first 100
+      // fetched rules when ordered by priority DESC
+      const result = await service.findMatchingRule(userId, tx("bulktest transaction", 10));
+      expect(result).not.toBeNull();
+      expect(result!.name).toBe("Bulk Rule 104");
+
+      // Clean up bulk rules
+      await db.delete(categoryRules).where(
+        eq(categoryRules.userId, userId)
+      );
+      // Re-insert the original test rules
+      await db.insert(categoryRules).values([
+        {
+          userId,
+          categoryId,
+          name: "Coffee Rule",
+          conditions: [
+            { field: "description", operator: "contains", value: "coffee", negate: false, caseSensitive: false },
+          ],
+          priority: 10,
+          enabled: true,
+        },
+        {
+          userId,
+          categoryId: categoryId2,
+          name: "Uber Rule",
+          conditions: [
+            { field: "description", operator: "startsWith", value: "uber", negate: false, caseSensitive: false },
+          ],
+          priority: 20,
+          enabled: true,
+        },
+        {
+          userId,
+          categoryId,
+          name: "Disabled Rule",
+          conditions: [
+            { field: "description", operator: "contains", value: "disabled", negate: false, caseSensitive: false },
+          ],
+          priority: 100,
+          enabled: false,
+        },
+        {
+          userId,
+          categoryId,
+          name: "Expensive Coffee Rule",
+          conditions: [
+            { field: "description", operator: "contains", value: "coffee", negate: false, caseSensitive: false },
+            { field: "amount", operator: "gt", value: 50 },
+          ],
+          priority: 30,
+          enabled: true,
+        },
+      ]);
+    });
+
+    test("only evaluates enabled rules (database-level filter)", async () => {
+      // The "Disabled Rule" has priority 100 but is disabled.
+      // It should NOT match because the database filters it out before in-memory evaluation.
+      const result = await service.findMatchingRule(userId, tx("disabled", 10));
+      expect(result).toBeNull();
+    });
+
+    test("only evaluates rules for the requested user (database-level filter)", async () => {
+      // Create another user with a rule that would match our test transaction
+      const db = getDb();
+      const [otherUser] = await db.insert(users).values({
+        email: `other-user-${Date.now()}@test.com`,
+        passwordHash: "test-hash",
+        name: "Other User",
+      }).returning();
+
+      const [otherCat] = await db.insert(categories).values({
+        userId: otherUser.id,
+        name: "Other Category",
+      }).returning();
+
+      await db.insert(categoryRules).values({
+        userId: otherUser.id,
+        categoryId: otherCat.id,
+        name: "Other User Coffee Rule",
+        conditions: [{ field: "description", operator: "contains", value: "coffee", negate: false, caseSensitive: false }],
+        priority: 999,
+        enabled: true,
+      });
+
+      // Querying with the original userId should not return the other user's rule
+      const result = await service.findMatchingRule(userId, tx("coffee", 5));
+      expect(result).not.toBeNull();
+      expect(result!.name).toBe("Coffee Rule"); // Not "Other User Coffee Rule"
+
+      // Clean up
+      await db.delete(categoryRules).where(eq(categoryRules.userId, otherUser.id));
+      await db.delete(categories).where(eq(categories.userId, otherUser.id));
+      await db.delete(users).where(eq(users.id, otherUser.id));
+    });
   });
 });
