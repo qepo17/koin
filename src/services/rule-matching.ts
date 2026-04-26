@@ -5,6 +5,9 @@ import { categoryRules } from "../db/schema";
 import type { CategoryRule, TransactionInput, Condition, DescriptionCondition, AmountCondition } from "../types/rules";
 import { conditionsSchema } from "../types/rules";
 
+// Maximum number of rules to evaluate per transaction to prevent unbounded memory/CPU usage
+const MAX_RULES_PER_EVALUATION = 100;
+
 export interface ConditionResult {
   field: string;
   operator: string;
@@ -90,11 +93,14 @@ export function createRuleMatchingService(db: PostgresJsDatabase<typeof schema>)
   }
 
   async function findMatchingRule(userId: string, transaction: TransactionInput): Promise<CategoryRule | null> {
+    // Fetch rules with database-level filtering (user + enabled) and cap at MAX_RULES_PER_EVALUATION
+    // to prevent unbounded memory/CPU usage from evaluating thousands of rules in-memory.
     const rules = await db
       .select()
       .from(categoryRules)
       .where(and(eq(categoryRules.userId, userId), eq(categoryRules.enabled, true)))
-      .orderBy(desc(categoryRules.priority));
+      .orderBy(desc(categoryRules.priority))
+      .limit(MAX_RULES_PER_EVALUATION);
 
     for (const row of rules) {
       const rule: CategoryRule = {

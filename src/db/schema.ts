@@ -216,5 +216,6 @@ export const categoryRules = pgTable("category_rules", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => ({
   userIdIdx: index("idx_category_rules_user_id").on(table.userId),
+  userEnabledPriorityIdx: index("idx_category_rules_user_enabled_priority").on(table.userId, table.enabled, table.priority),
   userPriorityIdx: index("idx_category_rules_priority").on(table.userId, table.priority),
 }));
