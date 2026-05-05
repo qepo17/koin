@@ -11,7 +11,7 @@ const app = new Hono();
 // List transactions (scoped to user)
 app.get("/", async (c) => {
   const userId = c.get("userId");
-  const { startDate, endDate, type, categoryId } = c.req.query();
+  const { startDate, endDate, type, categoryId, limit: limitParam, offset: offsetParam } = c.req.query();
   
   const conditions = [eq(transactions.userId, userId)];
   
@@ -20,13 +20,23 @@ app.get("/", async (c) => {
   if (type) conditions.push(eq(transactions.type, type as "income" | "expense" | "adjustment"));
   if (categoryId) conditions.push(eq(transactions.categoryId, categoryId));
   
+  const limit = Math.min(parseInt(limitParam) || 100, 500);
+  const offset = parseInt(offsetParam) || 0;
+
   const result = await db
     .select()
     .from(transactions)
     .where(and(...conditions))
-    .orderBy(desc(transactions.date));
+    .orderBy(desc(transactions.date))
+    .limit(limit)
+    .offset(offset);
+
+  const [{ count }] = await db
+    .select({ count: sql`count(*)` })
+    .from(transactions)
+    .where(and(...conditions));
     
-  return c.json({ data: result });
+  return c.json({ data: result, meta: { total: Number(count), limit, offset } });
 });
 
 // Get single transaction (scoped to user)

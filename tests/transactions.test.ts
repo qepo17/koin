@@ -398,6 +398,60 @@ describe("Transactions API", () => {
 
       expect(status).toBe(200);
       expect(data.data).toHaveLength(3);
+      expect(data.meta).toMatchObject({ total: 3, limit: 100, offset: 0 });
+    });
+
+    it("should apply default limit when no limit param provided", async () => {
+      // Create 105 transactions
+      for (let i = 0; i < 105; i++) {
+        await api.post("/api/transactions", { type: "expense", amount: "1.00", description: `Tx ${i}` });
+      }
+
+      const { status, data } = await api.get("/api/transactions");
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(100);
+      expect(data.meta).toMatchObject({ total: 105, limit: 100, offset: 0 });
+    });
+
+    it("should cap limit at 500 even if larger value requested", async () => {
+      // Create 550 transactions
+      for (let i = 0; i < 550; i++) {
+        await api.post("/api/transactions", { type: "expense", amount: "1.00", description: `Tx ${i}` });
+      }
+
+      const { status, data } = await api.get("/api/transactions?limit=1000");
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(500);
+      expect(data.meta).toMatchObject({ total: 550, limit: 500, offset: 0 });
+    });
+
+    it("should offset works correctly", async () => {
+      // Create 10 transactions with distinct descriptions for predictable ordering
+      for (let i = 0; i < 10; i++) {
+        await api.post("/api/transactions", { type: "expense", amount: "1.00", description: `OffsetTx ${String(i).padStart(2, "0")}` });
+      }
+
+      const { status, data } = await api.get("/api/transactions?limit=3&offset=3");
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(3);
+      expect(data.meta).toMatchObject({ total: 10, limit: 3, offset: 3 });
+      // With desc(date) ordering, offset 3 should skip the 3 newest
+    });
+
+    it("should return total count alongside results", async () => {
+      await api.post("/api/transactions", { type: "expense", amount: "10.00" });
+      await api.post("/api/transactions", { type: "income", amount: "100.00" });
+
+      const { status, data } = await api.get("/api/transactions");
+
+      expect(status).toBe(200);
+      expect(data.data).toHaveLength(2);
+      expect(data.meta.total).toBe(2);
+      expect(data.meta.limit).toBe(100);
+      expect(data.meta.offset).toBe(0);
     });
 
     it("should filter by type", async () => {
@@ -410,6 +464,7 @@ describe("Transactions API", () => {
       expect(status).toBe(200);
       expect(data.data).toHaveLength(2);
       expect(data.data.every((t: any) => t.type === "expense")).toBe(true);
+      expect(data.meta.total).toBe(2);
     });
 
     it("should filter by adjustment type", async () => {
@@ -422,6 +477,7 @@ describe("Transactions API", () => {
       expect(status).toBe(200);
       expect(data.data).toHaveLength(2);
       expect(data.data.every((t: any) => t.type === "adjustment")).toBe(true);
+      expect(data.meta.total).toBe(2);
     });
 
     it("should return empty array when no transactions", async () => {
@@ -429,6 +485,7 @@ describe("Transactions API", () => {
 
       expect(status).toBe(200);
       expect(data.data).toHaveLength(0);
+      expect(data.meta).toMatchObject({ total: 0, limit: 100, offset: 0 });
     });
 
     it("should not return transactions from other users", async () => {
@@ -443,6 +500,7 @@ describe("Transactions API", () => {
       const { status, data } = await otherApi.get("/api/transactions");
       expect(status).toBe(200);
       expect(data.data).toHaveLength(0);
+      expect(data.meta.total).toBe(0);
     });
   });
 
