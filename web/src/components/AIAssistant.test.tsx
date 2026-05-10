@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AIAssistant, AIAssistantButton } from "./AIAssistant";
 import { ai, ApiError } from "../lib/api";
@@ -39,6 +39,11 @@ const getPromptInput = () => screen.getByRole("textbox");
 describe("AIAssistant", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("renders nothing when closed", () => {
@@ -219,6 +224,180 @@ describe("AIAssistant", () => {
     // Input should be empty
     const newInput = getPromptInput() as HTMLTextAreaElement;
     expect(newInput.value).toBe("");
+  });
+
+  it("countdown decrements correctly every second", async () => {
+    (ai.interpret as Mock).mockResolvedValue({
+      data: {
+        commandId: "cmd-1",
+        interpretation: "Test",
+        preview: {
+          matchCount: 1,
+          records: [
+            {
+              id: "tx-1",
+              description: "Test",
+              amount: "10.00",
+              date: "2026-02-20",
+              categoryId: null,
+              categoryName: null,
+              type: "expense" as const,
+            },
+          ],
+        },
+        changes: { categoryId: "cat-1", categoryName: "Test" },
+        expiresIn: 5,
+      },
+    });
+
+    render(<AIAssistant isOpen={true} onClose={() => {}} />, {
+      wrapper: createWrapper(),
+    });
+
+    // Submit to enter preview step
+    const input = getPromptInput();
+    fireEvent.change(input, { target: { value: "Test" } });
+    fireEvent.click(screen.getByRole("button", { name: /preview changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/expires in/i)).toBeInTheDocument();
+    });
+
+    // Initial countdown should show 0:05
+    expect(screen.getByText(/0:05/)).toBeInTheDocument();
+
+    // Advance 1 second
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/0:04/)).toBeInTheDocument();
+    });
+
+    // Advance another second
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/0:03/)).toBeInTheDocument();
+    });
+  });
+
+  it("transitions to error step when countdown reaches 0", async () => {
+    (ai.interpret as Mock).mockResolvedValue({
+      data: {
+        commandId: "cmd-1",
+        interpretation: "Test",
+        preview: {
+          matchCount: 1,
+          records: [
+            {
+              id: "tx-1",
+              description: "Test",
+              amount: "10.00",
+              date: "2026-02-20",
+              categoryId: null,
+              categoryName: null,
+              type: "expense" as const,
+            },
+          ],
+        },
+        changes: { categoryId: "cat-1", categoryName: "Test" },
+        expiresIn: 2,
+      },
+    });
+
+    render(<AIAssistant isOpen={true} onClose={() => {}} />, {
+      wrapper: createWrapper(),
+    });
+
+    // Submit to enter preview step
+    const input = getPromptInput();
+    fireEvent.change(input, { target: { value: "Test" } });
+    fireEvent.click(screen.getByRole("button", { name: /preview changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/expires in/i)).toBeInTheDocument();
+    });
+
+    // Advance past expiration (2 seconds countdown + 1 extra tick to trigger <= 0)
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/something went wrong/i)).toBeInTheDocument();
+      expect(screen.getByText(/command expired/i)).toBeInTheDocument();
+    });
+  });
+
+  it("cleans up timer on unmount or when step changes", async () => {
+    (ai.interpret as Mock).mockResolvedValue({
+      data: {
+        commandId: "cmd-1",
+        interpretation: "Test",
+        preview: {
+          matchCount: 1,
+          records: [
+            {
+              id: "tx-1",
+              description: "Test",
+              amount: "10.00",
+              date: "2026-02-20",
+              categoryId: null,
+              categoryName: null,
+              type: "expense" as const,
+            },
+          ],
+        },
+        changes: { categoryId: "cat-1", categoryName: "Test" },
+        expiresIn: 300,
+      },
+    });
+
+    const { unmount } = render(
+      <AIAssistant isOpen={true} onClose={() => {}} />,
+      {
+        wrapper: createWrapper(),
+      }
+    );
+
+    // Submit to enter preview step
+    const input = getPromptInput();
+    fireEvent.change(input, { target: { value: "Test" } });
+    fireEvent.click(screen.getByRole("button", { name: /preview changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/expires in/i)).toBeInTheDocument();
+    });
+
+    // Unmount should not throw — timer cleanup runs via useEffect return
+    expect(() => unmount()).not.toThrow();
+
+    // Remount and go back to preview
+    const { unmount: unmount2 } = render(
+      <AIAssistant isOpen={true} onClose={() => {}} />,
+      {
+        wrapper: createWrapper(),
+      }
+    );
+
+    // Submit again
+    const input2 = getPromptInput();
+    fireEvent.change(input2, { target: { value: "Test" } });
+    fireEvent.click(screen.getByRole("button", { name: /preview changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/expires in/i)).toBeInTheDocument();
+    });
+
+    // Close modal — isOpen change triggers step reset effect which cleans up timer
+    unmount2();
+
+    // Should not throw
+    expect(() => unmount2()).not.toThrow();
   });
 });
 

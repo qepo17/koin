@@ -35,23 +35,24 @@ export function AIAssistant({ isOpen, onClose }: AIAssistantProps) {
     }
   }, [isOpen]);
 
-  // Countdown timer — only depends on step, reads countdown via functional update
+  // Countdown timer — decrements every second when in preview step
   useEffect(() => {
     if (step !== "preview") return;
 
     const timer = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) {
-          setStep("error");
-          setError("Command expired. Please try again.");
-          return 0;
-        }
-        return c - 1;
-      });
+      setCountdown((c) => (c <= 0 ? 0 : c - 1));
     }, 1000);
 
     return () => clearInterval(timer);
   }, [step]);
+
+  // Expiration logic — separate from countdown decrement to avoid race condition
+  useEffect(() => {
+    if (step === "preview" && countdown <= 0) {
+      setStep("error");
+      setError("Command expired. Please try again.");
+    }
+  }, [step, countdown]);
 
   const interpretMutation = useMutation({
     mutationFn: (prompt: string) => ai.interpret(prompt),
