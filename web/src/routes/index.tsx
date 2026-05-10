@@ -58,7 +58,23 @@ const rootRoute = createRootRoute({
 const authLayout = createRoute({
   getParentRoute: () => rootRoute,
   id: "auth",
-  component: () => <Outlet />,
+  component: () => {
+    const { isAuthenticated, isLoading } = useAuth();
+
+    if (isLoading) {
+      return (
+        <div className="flex h-screen items-center justify-center">
+          <div className="text-lg text-gray-500">Loading...</div>
+        </div>
+      );
+    }
+
+    if (isAuthenticated) {
+      return <Navigate to="/" />;
+    }
+
+    return <Outlet />;
+  },
 });
 
 // Protected layout (requires auth)
