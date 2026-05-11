@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
-import { setupTestDb, teardownTestDb, cleanupTables } from "./setup";
+import { setupTestDb, teardownTestDb, cleanupTables, getTestDb } from "./setup";
 import { createApi, createTestUser, createTestUserDirect } from "./helpers";
+import { debtPaymentAllocations, debtPayments } from "../src/db/schema";
+import { incrementDebtPaymentAllocationAmount } from "../src/services/debt-payment";
+import { eq } from "drizzle-orm";
 
 describe("Debt Tracker API", () => {
   let api: ReturnType<typeof createApi>;
@@ -1052,6 +1055,61 @@ describe("Debt Tracker API", () => {
       const secondAlloc = allocations.find((a: any) => a.debtId === debtBId);
       expect(firstAlloc.amount).toBe("1000000.00");
       expect(secondAlloc.amount).toBe("500000.00");
+    });
+
+    it("should atomically increment allocation amount under concurrent updates", async () => {
+      const db = getTestDb();
+
+      const acc = await api.post("/api/debt-accounts", {
+        name: "Concurrent CC",
+        type: "credit_card",
+        billingDay: 20,
+      });
+      const accountId = acc.data.data.id;
+
+      const debt = await api.post(`/api/debt-accounts/${accountId}/debts`, {
+        name: "Concurrent Debt",
+        type: "installment",
+        totalAmount: "10000000",
+        monthlyAmount: "1000000",
+      });
+      const debtId = debt.data.data.id;
+
+      const [payment] = await db
+        .insert(debtPayments)
+        .values({
+          accountId,
+          userId,
+          totalAmount: "0.00",
+          paidAt: new Date(),
+        })
+        .returning();
+
+      const [allocation] = await db
+        .insert(debtPaymentAllocations)
+        .values({
+          paymentId: payment.id,
+          debtId,
+          amount: "0.00",
+        })
+        .returning();
+
+      const increments = Array.from({ length: 25 }, () => "10.00");
+
+      await Promise.all(
+        increments.map((increment) =>
+          db.transaction((tx) =>
+            incrementDebtPaymentAllocationAmount(tx, allocation.id, increment)
+          )
+        )
+      );
+
+      const [updatedAllocation] = await db
+        .select()
+        .from(debtPaymentAllocations)
+        .where(eq(debtPaymentAllocations.id, allocation.id));
+
+      expect(updatedAllocation.amount).toBe("250.00");
     });
   });
 

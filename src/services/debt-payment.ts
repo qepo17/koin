@@ -6,6 +6,25 @@ import { Decimal } from "decimal.js";
 
 export type DebtPaymentService = ReturnType<typeof createDebtPaymentService>;
 
+type DbTransaction = Parameters<Parameters<PostgresJsDatabase<typeof schema>["transaction"]>[0]>[0];
+
+export async function incrementDebtPaymentAllocationAmount(
+  tx: DbTransaction,
+  allocationId: string,
+  amount: Decimal.Value
+) {
+  const increment = new Decimal(amount);
+
+  if (increment.lte(0)) return;
+
+  await tx
+    .update(debtPaymentAllocations)
+    .set({
+      amount: sql`${debtPaymentAllocations.amount} + ${increment.toFixed(2)}`,
+    })
+    .where(eq(debtPaymentAllocations.id, allocationId));
+}
+
 export function createDebtPaymentService(db: PostgresJsDatabase<typeof schema>) {
   /**
    * Auto-detect and create a debt payment when a transaction matches a debt account's category.
@@ -85,12 +104,7 @@ export function createDebtPaymentService(db: PostgresJsDatabase<typeof schema>) 
             );
 
           if (firstAllocation.length > 0) {
-            const currentAmount = new Decimal(firstAllocation[0].amount);
-            const newAmount = currentAmount.plus(remaining);
-            await tx
-              .update(debtPaymentAllocations)
-              .set({ amount: newAmount.toFixed(2) })
-              .where(eq(debtPaymentAllocations.id, firstAllocation[0].id));
+            await incrementDebtPaymentAllocationAmount(tx, firstAllocation[0].id, remaining);
           }
         }
       }
